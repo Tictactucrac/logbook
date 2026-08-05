@@ -19,12 +19,8 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/sauts?select=*&order=date.asc,day_index.asc`,
-        { headers }
-      );
-      const data = await r.json();
-      res.status(r.status).json(data);
+      const data = await fetchAllSauts(SUPABASE_URL, headers);
+      res.status(200).json(data);
       return;
     }
 
@@ -88,6 +84,24 @@ module.exports = async function handler(req, res) {
     res.status(500).json({ error: err.message });
   }
 };
+
+async function fetchAllSauts(SUPABASE_URL, headers) {
+  const pageSize = 1000;
+  let all = [];
+  let from = 0;
+  while (true) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/sauts?select=*&order=date.asc,day_index.asc`,
+      { headers: { ...headers, Range: `${from}-${from + pageSize - 1}` } }
+    );
+    const batch = await r.json();
+    if (!Array.isArray(batch)) break; // erreur renvoyée par Supabase
+    all = all.concat(batch);
+    if (batch.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
 
 async function nextDayIndex(SUPABASE_URL, headers, date) {
   const r = await fetch(
