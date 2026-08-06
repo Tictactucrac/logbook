@@ -560,10 +560,40 @@ document.getElementById('importFileInput').addEventListener('change', async (e)=
   openImportPreview(computeImportStatus(parsed));
 });
 
+function detectDelimiter(headerLine){
+  const commaCount = (headerLine.match(/,/g) || []).length;
+  const semiCount = (headerLine.match(/;/g) || []).length;
+  return semiCount > commaCount ? ';' : ',';
+}
+
+function parseCSVLine(line, delimiter){
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for(let i = 0; i < line.length; i++){
+    const ch = line[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(line[i+1] === '"'){ cur += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if(ch === '"'){ inQuotes = true; }
+      else if(ch === delimiter){ result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
 function parseSchoolCSV(text){
   const lines = text.split(/\r?\n/).filter(l => l.trim().length);
   if(lines.length < 2) return [];
-  const header = lines[0].split(';').map(h => h.trim());
+  const delimiter = detectDelimiter(lines[0]);
+  const header = parseCSVLine(lines[0], delimiter).map(h => h.trim());
   const idx = name => header.findIndex(h => h.toLowerCase().startsWith(name.toLowerCase()));
   const cols = {
     date: idx('Date'), lieu: idx('Lieu'), avion: idx('Avion'), altitude: idx('Altitude'),
@@ -571,7 +601,7 @@ function parseSchoolCSV(text){
     principale: idx('Principale'), reserve: idx('Réserve'), aad: idx('AAD'), notes: idx('Notes'),
   };
   return lines.slice(1).map(line => {
-    const c = line.split(';');
+    const c = parseCSVLine(line, delimiter);
     const raw = (c[cols.date] || '').trim();
     const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if(!m) return null;
