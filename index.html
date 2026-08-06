@@ -150,6 +150,11 @@
   .btn-delete{ background:none; border:none; color:var(--text-tertiary); font-size:12.5px; text-decoration:underline; }
   .btn-delete:hover{ color:var(--danger); }
 
+  .import-row{ display:flex; justify-content:space-between; gap:10px; padding:9px 12px; border-bottom:1px solid var(--border-soft); font-size:12.5px; }
+  .import-row:last-child{ border-bottom:none; }
+  .import-row .im-date{ font-family:var(--font-mono); color:var(--sky); white-space:nowrap; }
+  .import-row .im-info{ color:var(--text-secondary); flex:1; margin:0 10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
   .toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--bg-elevated-2); border:1px solid var(--border); color:var(--text-primary); padding:12px 18px; border-radius:8px; font-size:13px; opacity:0; pointer-events:none; transition:all .25s ease; z-index:60; max-width:90vw; text-align:center; }
   .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
@@ -242,8 +247,9 @@
         </button>
         <button class="add-btn secondary" id="openImport">
           <span class="icn">⇪</span>
-          <span>Importer un fichier<span class="add-btn-sub">Bientôt disponible</span></span>
+          <span>Importer un fichier<span class="add-btn-sub">CSV de l'école — doublons ignorés</span></span>
         </button>
+        <input type="file" id="importFileInput" accept=".csv" style="display:none;">
         <p class="add-hint">Le N° et le rang du jour sont recalculés automatiquement, jamais saisis à la main.</p>
       </aside>
     </div>
@@ -296,6 +302,24 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal import -->
+<div class="overlay" id="importOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Importer le fichier école</span>
+      <button class="modal-close" id="importClose">×</button>
+    </div>
+    <p id="importSummary" style="color:var(--text-secondary); font-size:13px; margin-bottom:14px;"></p>
+    <div id="importList" style="max-height:340px; overflow-y:auto; border:1px solid var(--border-soft); border-radius:8px;"></div>
+    <div class="modal-footer">
+      <div style="display:flex; gap:10px; margin-left:auto;">
+        <button type="button" class="btn btn-ghost" id="importCancel">Annuler</button>
+        <button type="button" class="btn btn-primary" id="importConfirm">Confirmer l'import</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -519,8 +543,117 @@ function showToast(msg){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2800);
 }
 
+// ---------- Import fichier école ----------
+let pendingImportRows = [];
+
 document.getElementById('openImport').addEventListener('click', ()=>{
-  showToast('Import du fichier école — prochaine étape');
+  document.getElementById('importFileInput').click();
+});
+
+document.getElementById('importFileInput').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const text = await file.text();
+  const parsed = parseSchoolCSV(text);
+  if(!parsed.length){ showToast('Fichier vide ou format non reconnu'); return; }
+  openImportPreview(computeImportStatus(parsed));
+});
+
+function parseSchoolCSV(text){
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if(lines.length < 2) return [];
+  const header = lines[0].split(';').map(h => h.trim());
+  const idx = name => header.findIndex(h => h.toLowerCase().startsWith(name.toLowerCase()));
+  const cols = {
+    date: idx('Date'), lieu: idx('Lieu'), avion: idx('Avion'), altitude: idx('Altitude'),
+    travail: idx('Travail'), libe: idx('Libé'), plieur: idx('Plieur'), parachute: idx('Parachute'),
+    principale: idx('Principale'), reserve: idx('Réserve'), aad: idx('AAD'), notes: idx('Notes'),
+  };
+  return lines.slice(1).map(line => {
+    const c = line.split(';');
+    const raw = (c[cols.date] || '').trim();
+    const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if(!m) return null;
+    const [, dd, mm, yyyy] = m;
+    return {
+      date: `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`,
+      lieu: (c[cols.lieu] || '').trim(),
+      avion: (c[cols.avion] || '').trim(),
+      altitude_m: parseInt((c[cols.altitude] || '').replace(/[^0-9]/g,''), 10) || null,
+      travail: (c[cols.travail] || '').trim(),
+      libe: (c[cols.libe] || '').trim(),
+      plieur: (c[cols.plieur] || '').trim(),
+      parachute: (c[cols.parachute] || '').trim(),
+      principale: (c[cols.principale] || '').trim(),
+      reserve: (c[cols.reserve] || '').trim(),
+      aad: (c[cols.aad] || '').trim(),
+      notes: (c[cols.notes] || '').trim(),
+    };
+  }).filter(Boolean);
+}
+
+function computeImportStatus(rows){
+  const existingCountByDate = {};
+  jumps.forEach(j => { existingCountByDate[j.date] = (existingCountByDate[j.date] || 0) + 1; });
+  const fileCountSoFar = {};
+  return rows.map(r => {
+    fileCountSoFar[r.date] = (fileCountSoFar[r.date] || 0) + 1;
+    const position = fileCountSoFar[r.date];
+    const isNew = position > (existingCountByDate[r.date] || 0);
+    return { ...r, day_index: position, isNew };
+  });
+}
+
+function openImportPreview(rowsWithStatus){
+  const newRows = rowsWithStatus.filter(r => r.isNew);
+  const skipped = rowsWithStatus.length - newRows.length;
+  pendingImportRows = newRows.map(({isNew, ...rest}) => rest);
+
+  document.getElementById('importSummary').textContent =
+    newRows.length
+      ? `${newRows.length} nouveau(x) saut(s) trouvé(s)${skipped ? `, ${skipped} déjà présent(s) — ignoré(s)` : ''}.`
+      : `Rien à importer — les ${skipped} saut(s) du fichier sont déjà dans ton carnet.`;
+
+  document.getElementById('importList').innerHTML = newRows.map(r => `
+    <div class="import-row">
+      <span class="im-date">${fmtDate(r.date)}</span>
+      <span class="im-info">${r.lieu || '—'} · ${r.travail || '—'}</span>
+      <span class="tag">n°${r.day_index}</span>
+    </div>
+  `).join('') || `<div class="empty-state">Aucun nouveau saut à importer.</div>`;
+
+  document.getElementById('importConfirm').style.display = newRows.length ? '' : 'none';
+  document.getElementById('importOverlay').classList.add('open');
+}
+function closeImportModal(){ document.getElementById('importOverlay').classList.remove('open'); }
+document.getElementById('importClose').addEventListener('click', closeImportModal);
+document.getElementById('importCancel').addEventListener('click', closeImportModal);
+document.getElementById('importOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'importOverlay') closeImportModal();
+});
+
+document.getElementById('importConfirm').addEventListener('click', async ()=>{
+  if(!pendingImportRows.length) return;
+  const btn = document.getElementById('importConfirm');
+  btn.disabled = true; btn.textContent = 'Import en cours…';
+  try{
+    const res = await fetch('/api/import', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-app-password': APP_PW },
+      body: JSON.stringify({ rows: pendingImportRows }),
+    });
+    if(res.status === 401){ showToast('Session expirée — recharge la page'); return; }
+    if(!res.ok) throw new Error();
+    const data = await res.json();
+    closeImportModal();
+    await reload();
+    showToast(`${data.inserted} saut(s) importé(s)`);
+  }catch(err){
+    showToast("Erreur pendant l'import");
+  }finally{
+    btn.disabled = false; btn.textContent = 'Confirmer l\'import';
+  }
 });
 document.getElementById('seeAllBtn').addEventListener('click', ()=>{
   showToast('Page "Carnet" complète — prochaine étape');
