@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carnet de sauts — Carnet complet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/shared/app.js"></script>
+<link rel="stylesheet" href="/shared/style.css">
+</head>
+<body>
+
+<!-- ---------- Verrou mot de passe ---------- -->
+<div class="overlay" id="authOverlay">
+  <div class="modal auth-modal">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style="margin:0 auto;">
+      <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2"/>
+      <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+      <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div class="modal-title" style="margin-top:12px;">Carnet de sauts</div>
+    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Entre le mot de passe pour accéder à tes données.</p>
+    <input type="password" id="authInput" placeholder="Mot de passe" autofocus>
+    <div class="auth-error" id="authError">Mot de passe incorrect.</div>
+    <button class="btn btn-primary" id="authSubmit" style="width:100%; margin-top:14px;">Entrer</button>
+  </div>
+</div>
+
+<div class="app" id="mainContent" style="display:none;">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2" opacity="0.9"/>
+        <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+        <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+        <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+        <line x1="5" y1="17" x2="8" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+        <line x1="26" y1="17" x2="29" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">VALENTIN</span>
+        <span class="brand-sub">Carnet de sauts</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a class="tab" href="index.html">Tableau de bord</a>
+      <a class="tab active" href="carnet.html">Carnet</a>
+      <a class="tab" href="avions.html">Avions</a>
+      <a class="tab" href="dz.html">DZ</a>
+      <a class="tab" href="materiel.html">Matériel</a>
+      <button class="tab" data-soon>Stats</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Carnet complet</span>
+        <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
+        <div class="field" style="flex:1; min-width:220px;">
+          <label>Recherche</label>
+          <input type="text" id="searchInput" placeholder="Lieu, avion, travail, matériel, notes…">
+        </div>
+        <div class="field" style="width:150px;">
+          <label>Année</label>
+          <select id="yearFilter"><option value="">Toutes</option></select>
+        </div>
+      </div>
+      <p id="resultCount" style="color:var(--text-secondary); font-size:12.5px; margin:0 0 14px;"></p>
+
+      <table>
+        <thead><tr id="carnetHeadRow"></tr></thead>
+        <tbody id="carnetBody"></tbody>
+      </table>
+    </section>
+  </main>
+</div>
+
+<!-- Modal ajout/édition (identique à index.html) -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title" id="modalTitle">Ajouter un saut</span>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-preview" id="modalPreview"></div>
+    <form id="jumpForm">
+      <div class="form-grid">
+        <div class="field"><label>Date</label><input type="date" id="f-date" required></div>
+        <div class="field"><label>Lieu</label><input type="text" id="f-lieu" required></div>
+        <div class="field"><label>Avion</label><input type="text" id="f-avion" placeholder="F-GPBK"></div>
+        <div class="field"><label>Altitude (m)</label><input type="number" step="100" id="f-altitude"></div>
+        <div class="field full"><label>Travail</label><input type="text" id="f-travail" placeholder="FF, Init FF, VR, Vidéo…" required></div>
+        <div class="field"><label>Parachute</label><input type="text" id="f-parachute"></div>
+        <div class="field"><label>Principale</label><input type="text" id="f-principale"></div>
+        <div class="field"><label>Réserve</label><input type="text" id="f-reserve"></div>
+        <div class="field"><label>AAD</label><input type="text" id="f-aad"></div>
+        <div class="field full"><label>Notes</label><textarea id="f-notes" placeholder="avec…"></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-delete" id="deleteBtn" style="display:none;">Supprimer ce saut</button>
+        <div style="display:flex; gap:10px; margin-left:auto;">
+          <button type="button" class="btn btn-ghost" id="cancelBtn">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">Enregistrer</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let jumps = [];
+let editingId = null;
+let sortState = { field: 'date', dir: 'desc' };
+
+const COLS = [
+  { field:'global_n',   label:'N°' },
+  { field:'date',       label:'Date' },
+  { field:'lieu',       label:'Lieu' },
+  { field:'avion',      label:'Avion' },
+  { field:'altitude_m', label:'Alt.' },
+  { field:'travail',    label:'Travail' },
+  { field:'principale', label:'Principale' },
+];
+
+// ---------- Filtres + tri ----------
+function applyFilters(list){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const year = document.getElementById('yearFilter').value;
+  return list.filter(j=>{
+    if(year && !j.date.startsWith(year)) return false;
+    if(!q) return true;
+    const hay = [j.lieu, j.avion, j.travail, j.principale, j.parachute, j.reserve, j.aad, j.plieur, j.libe, j.notes]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+function applySort(list){
+  const { field, dir } = sortState;
+  const mul = dir === 'asc' ? 1 : -1;
+  return [...list].sort((a,b)=>{
+    let av = a[field], bv = b[field];
+    if(field === 'date' && av === bv){ av = a.day_index; bv = b.day_index; }
+    if(av == null) av = '';
+    if(bv == null) bv = '';
+    if(typeof av === 'string') av = av.toLowerCase();
+    if(typeof bv === 'string') bv = bv.toLowerCase();
+    if(av < bv) return -1*mul;
+    if(av > bv) return 1*mul;
+    return 0;
+  });
+}
+
+function populateYearFilter(){
+  const sel = document.getElementById('yearFilter');
+  const current = sel.value;
+  const years = Array.from(new Set(jumps.map(j=>j.date.slice(0,4)))).sort().reverse();
+  sel.innerHTML = `<option value="">Toutes</option>` + years.map(y=>`<option value="${y}">${y}</option>`).join('');
+  if(years.includes(current)) sel.value = current;
+}
+
+// ---------- Rendu ----------
+function renderHead(){
+  const row = document.getElementById('carnetHeadRow');
+  row.innerHTML = COLS.map(c=>{
+    const arrow = sortState.field === c.field ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th data-sort="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${arrow}</th>`;
+  }).join('') + '<th></th>';
+  row.querySelectorAll('th[data-sort]').forEach(th=>{
+    th.addEventListener('click', ()=>{
+      const field = th.dataset.sort;
+      if(sortState.field === field){ sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; }
+      else { sortState = { field, dir: (field==='date'||field==='global_n') ? 'desc' : 'asc' }; }
+      refresh();
+    });
+  });
+}
+
+function renderTable(sorted){
+  const body = document.getElementById('carnetBody');
+  if(!sorted.length){
+    body.innerHTML = `<tr><td colspan="8" class="empty-state">Aucun saut ne correspond à ces critères.</td></tr>`;
+    return;
+  }
+  body.innerHTML = sorted.map(j => `
+    <tr>
+      <td data-label="N°" class="col-num">${j.global_n}</td>
+      <td data-label="Date" class="col-date">${fmtDate(j.date)}</td>
+      <td data-label="Lieu">${j.lieu || '—'}</td>
+      <td data-label="Avion">${j.avion || '—'}</td>
+      <td data-label="Alt.">${j.altitude_m ? j.altitude_m+' m' : '—'}</td>
+      <td data-label="Travail"><span class="tag">${j.travail || '—'}</span></td>
+      <td data-label="Principale">${j.principale || '—'}</td>
+      <td data-label="" class="cell-actions"><button class="row-edit" data-edit="${j.id}" aria-label="Modifier">✎</button></td>
+    </tr>
+  `).join('');
+  body.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openModal(Number(btn.dataset.edit)));
+  });
+}
+
+function refresh(){
+  computeGlobalN(jumps); // affecte j.global_n à chaque saut (mêmes objets, par référence)
+  populateYearFilter();
+  const filtered = applyFilters(jumps);
+  const sorted = applySort(filtered);
+  renderHead();
+  renderTable(sorted);
+  document.getElementById('resultCount').textContent =
+    `${sorted.length} saut(s) affiché(s) sur ${jumps.length} au total`;
+}
+
+async function reload(){
+  jumps = await apiFetch();
+  refresh();
+}
+
+initAuth((data)=>{ jumps = data; refresh(); });
+
+document.getElementById('searchInput').addEventListener('input', refresh);
+document.getElementById('yearFilter').addEventListener('change', refresh);
+
+// ---------- Modal ajout/édition (logique identique à index.html) ----------
+const overlay = document.getElementById('overlay');
+const form = document.getElementById('jumpForm');
+
+function lastEquip(){
+  const sorted = computeGlobalN(jumps);
+  const last = sorted[sorted.length-1];
+  return last ? { parachute:last.parachute, principale:last.principale, reserve:last.reserve, aad:last.aad, lieu:last.lieu, avion:last.avion, altitude_m:last.altitude_m } : {};
+}
+
+function openModal(id=null){
+  editingId = id;
+  const j = id ? jumps.find(x=>x.id===id) : null;
+  const defaults = j ? {} : lastEquip();
+  document.getElementById('modalTitle').textContent = j ? 'Modifier le saut' : 'Ajouter un saut';
+  document.getElementById('deleteBtn').style.display = j ? 'inline' : 'none';
+  const map = { date:'date', lieu:'lieu', avion:'avion', altitude:'altitude_m', travail:'travail', parachute:'parachute', principale:'principale', reserve:'reserve', aad:'aad', notes:'notes' };
+  Object.entries(map).forEach(([field,key])=>{
+    const el = document.getElementById('f-'+field);
+    el.value = j ? (j[key] ?? '') : (defaults[key] ?? '');
+  });
+  updatePreview();
+  overlay.classList.add('open');
+}
+function closeModal(){ overlay.classList.remove('open'); }
+function updatePreview(){
+  const date = document.getElementById('f-date').value;
+  const preview = document.getElementById('modalPreview');
+  if(!date){ preview.textContent=''; return; }
+  const others = jumps.filter(j=> j.date===date && j.id!==editingId);
+  preview.textContent = `→ Ce sera le saut n°${others.length+1} de cette journée`;
+}
+document.getElementById('f-date').addEventListener('input', updatePreview);
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('cancelBtn').addEventListener('click', closeModal);
+overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+document.getElementById('openAddManual').addEventListener('click', ()=> openModal(null));
+
+form.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const saveBtn = document.getElementById('saveBtn');
+  const data = {
+    date: document.getElementById('f-date').value,
+    lieu: document.getElementById('f-lieu').value,
+    avion: document.getElementById('f-avion').value,
+    altitude_m: Number(document.getElementById('f-altitude').value) || null,
+    travail: document.getElementById('f-travail').value,
+    parachute: document.getElementById('f-parachute').value,
+    principale: document.getElementById('f-principale').value,
+    reserve: document.getElementById('f-reserve').value,
+    aad: document.getElementById('f-aad').value,
+    notes: document.getElementById('f-notes').value,
+  };
+  saveBtn.disabled = true; saveBtn.textContent = '...';
+  try{
+    if(editingId){
+      await apiFetch({ method:'PATCH', body:{ id:editingId, ...data } });
+      showToast('Saut modifié');
+    } else {
+      await apiFetch({ method:'POST', body:data });
+      showToast('Saut ajouté');
+    }
+    closeModal();
+    await reload();
+  }catch(err){
+    showToast(err.authError ? 'Session expirée — recharge la page' : 'Erreur : le saut n\'a pas pu être enregistré');
+  }finally{
+    saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+  }
+});
+
+document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+  if(!confirm('Supprimer définitivement ce saut ?')) return;
+  try{
+    await apiFetch({ method:'DELETE', query:'?id='+editingId });
+    closeModal();
+    await reload();
+    showToast('Saut supprimé');
+  }catch(err){
+    showToast('Erreur lors de la suppression');
+  }
+});
+</script>
+</body>
+</html>
