@@ -383,6 +383,17 @@ function parseCSVLine(line, delimiter){
   return result;
 }
 
+// Corrections de nom de DZ appliquées automatiquement à l'import (l'école renomme
+// parfois un lieu d'un export à l'autre). Insensible à la casse/accents de saisie —
+// ajouter une ligne ici (clé en minuscules) pour un futur renommage.
+const LIEU_ALIASES = {
+  'ceps ariège': 'Pamiers',
+};
+function normalizeLieu(lieu){
+  const key = lieu.trim().toLowerCase();
+  return LIEU_ALIASES[key] || lieu;
+}
+
 function parseSchoolCSV(text){
   const lines = text.split(/\r?\n/).filter(l => l.trim().length);
   if(lines.length < 2) return [];
@@ -402,7 +413,7 @@ function parseSchoolCSV(text){
     const [, dd, mm, yyyy] = m;
     return {
       date: `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`,
-      lieu: (c[cols.lieu] || '').trim(),
+      lieu: normalizeLieu((c[cols.lieu] || '').trim()),
       avion: (c[cols.avion] || '').trim(),
       altitude_m: parseInt((c[cols.altitude] || '').replace(/[^0-9]/g,''), 10) || null,
       travail: (c[cols.travail] || '').trim(),
