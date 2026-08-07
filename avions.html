@@ -76,7 +76,7 @@
         <span class="panel-title">Sauts par avion</span>
       </div>
       <table>
-        <thead><tr><th>Avion</th><th>Type</th><th>Sauts</th><th>%</th><th>Alt. moy.</th><th>Dernier saut</th></tr></thead>
+        <thead><tr><th>Avion</th><th>Type</th><th>Sauts</th><th>%</th><th>Alt. moy.</th><th>Dernier saut</th><th></th></tr></thead>
         <tbody id="avionsBody"></tbody>
       </table>
     </section>
@@ -93,6 +93,32 @@
   </main>
 </div>
 
+<!-- Modal édition du type d'appareil -->
+<div class="overlay" id="avionOverlay">
+  <div class="modal" style="max-width:380px;">
+    <div class="modal-head">
+      <span class="modal-title" id="avionModalTitle">Avion</span>
+      <button class="modal-close" id="avionModalClose">×</button>
+    </div>
+    <form id="avionForm">
+      <div class="field" style="margin-bottom:12px;">
+        <label>Immatriculation</label>
+        <input type="text" id="av-immat" required>
+      </div>
+      <div class="field">
+        <label>Type d'appareil</label>
+        <input type="text" id="av-type" placeholder="Grand Caravan, Pilatus…">
+      </div>
+      <div class="modal-footer">
+        <div style="display:flex; gap:10px; margin-left:auto;">
+          <button type="button" class="btn btn-ghost" id="avionCancelBtn">Annuler</button>
+          <button type="submit" class="btn btn-primary" id="avionSaveBtn">Enregistrer</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -104,7 +130,7 @@ let charts = {};
 function renderTable(groups){
   const body = document.getElementById('avionsBody');
   if(!groups.length){
-    body.innerHTML = `<tr><td colspan="6" class="empty-state">Aucun saut enregistré.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" class="empty-state">Aucun saut enregistré.</td></tr>`;
     return;
   }
   body.innerHTML = groups.map(g => `
@@ -115,8 +141,12 @@ function renderTable(groups){
       <td data-label="%">${g.pct.toFixed(1)}%</td>
       <td data-label="Alt. moy.">${g.avgAlt ? g.avgAlt+' m' : '—'}</td>
       <td data-label="Dernier saut" class="col-date">${fmtDate(g.last)}</td>
+      <td data-label="" class="cell-actions">${g.key === '—' ? '' : `<button class="row-edit" data-edit="${g.key}" aria-label="Modifier le type">✎</button>`}</td>
     </tr>
   `).join('');
+  body.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=> openAvionModal(btn.dataset.edit));
+  });
 }
 
 function renderHero(groups){
@@ -182,6 +212,44 @@ initAuth(async (data) => {
     // Pas bloquant : sans la table avions, le type d'appareil s'affiche juste en "—"
   }
   refresh();
+});
+
+// ---------- Modal édition du type d'appareil ----------
+const avionOverlay = document.getElementById('avionOverlay');
+const avionForm = document.getElementById('avionForm');
+
+function openAvionModal(immat){
+  document.getElementById('avionModalTitle').textContent = immat;
+  const immatInput = document.getElementById('av-immat');
+  immatInput.value = immat;
+  immatInput.readOnly = true; // on édite toujours un immat déjà présent dans les sauts
+  document.getElementById('av-type').value = avionsMap[immat] || '';
+  avionOverlay.classList.add('open');
+  document.getElementById('av-type').focus();
+}
+function closeAvionModal(){ avionOverlay.classList.remove('open'); }
+document.getElementById('avionModalClose').addEventListener('click', closeAvionModal);
+document.getElementById('avionCancelBtn').addEventListener('click', closeAvionModal);
+avionOverlay.addEventListener('click', e=>{ if(e.target===avionOverlay) closeAvionModal(); });
+
+avionForm.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const saveBtn = document.getElementById('avionSaveBtn');
+  const immat = document.getElementById('av-immat').value.trim();
+  const type_avion = document.getElementById('av-type').value.trim();
+  if(!immat) return;
+  saveBtn.disabled = true; saveBtn.textContent = '...';
+  try{
+    await apiFetch({ endpoint: '/api/avions', method: 'POST', body: { immat, type_avion } });
+    avionsMap[immat] = type_avion || null;
+    closeAvionModal();
+    refresh();
+    showToast('Type enregistré');
+  }catch(err){
+    showToast(err.authError ? 'Session expirée — recharge la page' : "Erreur lors de l'enregistrement");
+  }finally{
+    saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+  }
 });
 </script>
 </body>
