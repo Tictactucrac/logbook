@@ -62,9 +62,9 @@ function initAuth(onReady){
   const btn = document.getElementById('authSubmit');
   const main = document.getElementById('mainContent');
 
-  async function tryAuth(pw){
+  async function tryAuth(pw, silent){
     APP_PW = pw;
-    btn.disabled = true; btn.textContent = '...';
+    if(!silent){ btn.disabled = true; btn.textContent = '...'; }
     try{
       const data = await apiFetch();
       localStorage.setItem('logbook_pw', pw);
@@ -72,16 +72,20 @@ function initAuth(onReady){
       main.style.display = '';
       onReady(data);
     }catch(e){
+      overlay.classList.add('open');
       err.style.display = 'block';
       localStorage.removeItem('logbook_pw');
     }finally{
-      btn.disabled = false; btn.textContent = 'Entrer';
+      if(!silent){ btn.disabled = false; btn.textContent = 'Entrer'; }
     }
   }
 
   btn.addEventListener('click', ()=> tryAuth(input.value));
   input.addEventListener('keydown', e=>{ if(e.key === 'Enter') tryAuth(e.target.value); });
-  if(APP_PW){ tryAuth(APP_PW); }
+
+  // Mot de passe déjà mémorisé : on vérifie en silence, sans montrer la modale.
+  // Sinon (première visite, ou mémoire effacée) : on affiche la modale tout de suite.
+  if(APP_PW){ tryAuth(APP_PW, true); } else { overlay.classList.add('open'); }
 }
 
 document.addEventListener('DOMContentLoaded', ()=>{
