@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carnet de sauts — DZ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/shared/app.js"></script>
+<link rel="stylesheet" href="/shared/style.css">
+</head>
+<body>
+
+<!-- ---------- Verrou mot de passe ---------- -->
+<div class="overlay" id="authOverlay">
+  <div class="modal auth-modal">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style="margin:0 auto;">
+      <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2"/>
+      <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+      <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div class="modal-title" style="margin-top:12px;">Carnet de sauts</div>
+    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Entre le mot de passe pour accéder à tes données.</p>
+    <input type="password" id="authInput" placeholder="Mot de passe" autofocus>
+    <div class="auth-error" id="authError">Mot de passe incorrect.</div>
+    <button class="btn btn-primary" id="authSubmit" style="width:100%; margin-top:14px;">Entrer</button>
+  </div>
+</div>
+
+<div class="app" id="mainContent" style="display:none;">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2" opacity="0.9"/>
+        <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+        <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+        <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+        <line x1="5" y1="17" x2="8" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+        <line x1="26" y1="17" x2="29" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">VALENTIN</span>
+        <span class="brand-sub">Carnet de sauts</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a class="tab" href="index.html">Tableau de bord</a>
+      <button class="tab" data-soon>Carnet</button>
+      <a class="tab" href="avions.html">Avions</a>
+      <a class="tab active" href="dz.html">DZ</a>
+      <a class="tab" href="materiel.html">Matériel</a>
+      <button class="tab" data-soon>Stats</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero bracket">
+      <div class="hero-main">
+        <span class="hero-label">Dropzones différentes</span>
+        <span class="hero-number" id="heroTotal">—</span>
+        <span class="hero-delta" id="heroDelta"></span>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><span class="hero-stat-value" id="statTop">–</span><span class="hero-stat-label">DZ la + fréquentée</span></div>
+        <div class="hero-stat"><span class="hero-stat-value" id="statTopCount">–</span><span class="hero-stat-label">Sauts sur cette DZ</span></div>
+        <div class="hero-stat"><span class="hero-stat-value" id="statAltAvg">–</span><span class="hero-stat-label">Altitude moyenne</span></div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-bottom:20px;">
+      <div class="panel-head">
+        <span class="panel-title">Sauts par DZ</span>
+      </div>
+      <table>
+        <thead><tr><th>Lieu</th><th>Sauts</th><th>%</th><th>Alt. moy.</th><th>Dernier saut</th></tr></thead>
+        <tbody id="dzBody"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Graphiques</span>
+      </div>
+      <div class="stats-widgets">
+        <div class="widget"><div class="widget-title">Sauts par DZ (top 10)</div><canvas id="chartDZCount"></canvas></div>
+        <div class="widget"><div class="widget-title">Altitude moyenne par DZ (top 10)</div><canvas id="chartDZAlt"></canvas></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let jumps = [];
+let charts = {};
+
+// ---------- Rendu ----------
+function renderTable(groups){
+  const body = document.getElementById('dzBody');
+  if(!groups.length){
+    body.innerHTML = `<tr><td colspan="5" class="empty-state">Aucun saut enregistré.</td></tr>`;
+    return;
+  }
+  body.innerHTML = groups.map(g => `
+    <tr>
+      <td data-label="Lieu" class="col-num">${g.key === '—' ? 'Non renseigné' : g.key}</td>
+      <td data-label="Sauts" class="col-num">${g.count}</td>
+      <td data-label="%">${g.pct.toFixed(1)}%</td>
+      <td data-label="Alt. moy.">${g.avgAlt ? g.avgAlt+' m' : '—'}</td>
+      <td data-label="Dernier saut" class="col-date">${fmtDate(g.last)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderHero(groups, allJumps){
+  const named = groups.filter(g => g.key !== '—');
+  document.getElementById('heroTotal').textContent = named.length;
+
+  const unknown = groups.find(g => g.key === '—');
+  document.getElementById('heroDelta').textContent = unknown ? `${unknown.count} saut(s) sans lieu renseigné` : '';
+
+  const top = named[0];
+  document.getElementById('statTop').textContent = top ? top.key : '—';
+  document.getElementById('statTopCount').textContent = top ? top.count : '–';
+
+  const withAlt = allJumps.filter(j => j.altitude_m);
+  const avgAltAll = withAlt.length ? Math.round(withAlt.reduce((s,j)=>s+j.altitude_m,0)/withAlt.length) : null;
+  document.getElementById('statAltAvg').textContent = avgAltAll ? avgAltAll+' m' : '–';
+}
+
+function renderCharts(groups){
+  const named = groups.filter(g => g.key !== '—').slice(0, 10);
+
+  Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
+  Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+  const gridColor = '#2b3241';
+  Object.values(charts).forEach(c => c.destroy());
+
+  charts.count = new Chart(document.getElementById('chartDZCount'), {
+    type: 'bar',
+    data: { labels: named.map(g=>g.key), datasets: [{ data: named.map(g=>g.count), backgroundColor:'#ff9b42', borderRadius:4, maxBarThickness:22 }] },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display:false } },
+      scales: { x: { beginAtZero:true, ticks:{precision:0}, grid:{color:gridColor} }, y: { grid:{display:false} } }
+    }
+  });
+
+  const altSorted = [...named].sort((a,b)=> (b.avgAlt||0) - (a.avgAlt||0));
+  charts.alt = new Chart(document.getElementById('chartDZAlt'), {
+    type: 'bar',
+    data: { labels: altSorted.map(g=>g.key), datasets: [{ data: altSorted.map(g=>g.avgAlt||0), backgroundColor:'#5fc8e3', borderRadius:4, maxBarThickness:22 }] },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display:false } },
+      scales: { x: { beginAtZero:true, ticks:{ callback:v=>v+' m' }, grid:{color:gridColor} }, y: { grid:{display:false} } }
+    }
+  });
+}
+
+function refresh(){
+  const groups = groupStats(jumps, 'lieu');
+  renderHero(groups, jumps);
+  renderTable(groups);
+  renderCharts(groups);
+}
+
+initAuth((data) => {
+  jumps = data;
+  refresh();
+});
+</script>
+</body>
+</html>
