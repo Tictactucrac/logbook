@@ -1,4 +1,4 @@
-  :root{
+:root{
     --bg:#12151c; --bg-elevated:#1a1f29; --bg-elevated-2:#232a37;
     --border:#2b3241; --border-soft:#232a36;
     --text-primary:#edeff3; --text-secondary:#8d96a8; --text-tertiary:#5a6275;
@@ -151,6 +151,12 @@
   .auth-modal input{ width:100%; background:var(--bg-elevated-2); border:1px solid var(--border); border-radius:7px; padding:11px 12px; color:var(--text-primary); font-size:15px; margin-top:16px; text-align:center; }
   .auth-modal input:focus{ border-color:var(--amber); }
   .auth-error{ color:var(--danger); font-size:12.5px; margin-top:10px; display:none; }
+
+  .account-menu{ display:none; position:absolute; top:calc(100% + 8px); left:0; min-width:140px; background:var(--bg-elevated-2); border:1px solid var(--border); border-radius:8px; padding:4px; box-shadow:0 10px 24px rgba(0,0,0,0.4); z-index:70; }
+  .account-menu.open{ display:block; animation:fadeIn .12s ease; }
+  .account-menu button{ display:block; width:100%; text-align:left; background:none; border:none; color:var(--text-secondary); font-size:13px; font-weight:600; padding:8px 10px; border-radius:6px; }
+  .account-menu button:hover{ background:var(--bg-elevated); color:var(--text-primary); }
+  .account-menu button.active{ color:var(--amber); }
 
   @keyframes rise{ from{ opacity:0; transform:translateY(8px);} to{ opacity:1; transform:translateY(0);} }
   @keyframes fadeIn{ from{ opacity:0;} to{ opacity:1;} }
