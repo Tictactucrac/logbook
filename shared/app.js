@@ -11,6 +11,12 @@ const ACCOUNTS = [
 ];
 let ACCOUNT = localStorage.getItem('logbook_account') || 'valentin';
 
+// Thème appliqué immédiatement (avant le premier rendu) pour éviter un flash de
+// l'ancien thème au chargement — /shared/app.js est chargé en <head>, donc ceci
+// s'exécute avant que le <body> ne soit peint.
+const THEME_KEY = 'logbook_theme';
+document.documentElement.setAttribute('data-theme', localStorage.getItem(THEME_KEY) || 'dark');
+
 const monthsFR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 const fmtDate = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
 
@@ -57,6 +63,76 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2800);
+}
+
+// ---------- Export CSV générique ----------
+function csvEscape(v){
+  if(v == null) return '';
+  const s = String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function toCSV(headers, rows){
+  const lines = [headers.map(csvEscape).join(',')];
+  rows.forEach(r => lines.push(r.map(csvEscape).join(',')));
+  return lines.join('\r\n');
+}
+function downloadCSV(filename, csvText){
+  const blob = new Blob(['\uFEFF' + csvText], { type:'text/csv;charset=utf-8;' }); // BOM -> accents OK dans Excel
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Ouvre une modale générique de choix de colonnes puis télécharge un CSV.
+// fields: [{ key, label, get:(row)=>valeur, default:bool (true si omis) }]
+function openExportModal({ title, fields, rows, filename }){
+  const existing = document.getElementById('exportModalOverlay');
+  if(existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.className = 'overlay open';
+  modal.id = 'exportModalOverlay';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-head">
+        <span class="modal-title">${title}</span>
+        <button class="modal-close" id="exportModalClose">×</button>
+      </div>
+      <p style="color:var(--text-secondary); font-size:13px; margin-bottom:14px;">Choisis les colonnes à inclure (${rows.length} ligne(s)).</p>
+      <div class="export-fields">
+        ${fields.map(f => `
+          <label class="export-field-row">
+            <input type="checkbox" data-key="${f.key}" ${f.default === false ? '' : 'checked'}>
+            ${f.label}
+          </label>
+        `).join('')}
+      </div>
+      <div class="modal-footer">
+        <div style="display:flex; gap:10px; margin-left:auto;">
+          <button type="button" class="btn btn-ghost" id="exportModalCancel">Annuler</button>
+          <button type="button" class="btn btn-primary" id="exportModalConfirm">Télécharger le CSV</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const close = ()=> modal.remove();
+  modal.querySelector('#exportModalClose').addEventListener('click', close);
+  modal.querySelector('#exportModalCancel').addEventListener('click', close);
+  modal.addEventListener('click', e=>{ if(e.target === modal) close(); });
+
+  modal.querySelector('#exportModalConfirm').addEventListener('click', ()=>{
+    const checked = fields.filter(f => modal.querySelector(`[data-key="${f.key}"]`).checked);
+    if(!checked.length){ showToast('Choisis au moins une colonne'); return; }
+    const headers = checked.map(f => f.label);
+    const csvRows = rows.map(row => checked.map(f => f.get(row)));
+    downloadCSV(filename, toCSV(headers, csvRows));
+    close();
+    showToast('Export téléchargé');
+  });
 }
 
 // Initialise le verrou mot de passe. Appelle onReady(data) une fois authentifié
@@ -133,9 +209,38 @@ function initAccountSwitcher(){
   });
 }
 
+// Injecte le switch clair/sombre dans le topbar (visible sur toutes les pages,
+// même quand les onglets sont cachés en mobile) et le relie au thème mémorisé.
+function initThemeSwitch(){
+  const topbar = document.querySelector('.topbar');
+  if(!topbar) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'theme-switch-wrap';
+  wrap.title = 'Changer de thème';
+  wrap.innerHTML = `
+    <span class="theme-icon">☀</span>
+    <label class="theme-toggle">
+      <input type="checkbox" id="themeToggleInput">
+      <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
+    </label>
+    <span class="theme-icon">🌙</span>
+  `;
+  topbar.appendChild(wrap);
+
+  const input = wrap.querySelector('#themeToggleInput');
+  input.checked = document.documentElement.getAttribute('data-theme') === 'light';
+  input.addEventListener('change', ()=>{
+    const theme = input.checked ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   document.querySelectorAll('[data-soon]').forEach(t=>{
     t.addEventListener('click', ()=> showToast('Bientôt disponible'));
   });
   initAccountSwitcher();
+  initThemeSwitch();
 });
