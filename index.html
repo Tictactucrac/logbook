@@ -222,7 +222,7 @@ function renderStats(sorted){
 
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
   Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-  const gridColor = '#2b3241';
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
   Object.values(charts).forEach(c=>c.destroy());
 
   charts.month = new Chart(document.getElementById('chartMonth'), {
@@ -232,7 +232,7 @@ function renderStats(sorted){
   });
   charts.type = new Chart(document.getElementById('chartType'), {
     type:'doughnut',
-    data:{ labels:Object.keys(byType), datasets:[{ data:Object.values(byType), backgroundColor:palette, borderColor:'#1a1f29', borderWidth:2 }]},
+    data:{ labels:Object.keys(byType), datasets:[{ data:Object.values(byType), backgroundColor:palette, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }]},
     options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, cutout:'62%' }
   });
   charts.cumul = new Chart(document.getElementById('chartCumul'), {
