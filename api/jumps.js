@@ -9,6 +9,9 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // Compte actif : "valentin" (par défaut) ou "marie" -> table dédiée.
+  const SAUTS_TABLE = req.headers['x-account'] === 'marie' ? 'sauts_marie' : 'sauts';
+
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
   const headers = {
@@ -19,15 +22,15 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const data = await fetchAllSauts(SUPABASE_URL, headers);
+      const data = await fetchAllSauts(SUPABASE_URL, headers, SAUTS_TABLE);
       res.status(200).json(data);
       return;
     }
 
     if (req.method === 'POST') {
       const body = req.body;
-      const day_index = await nextDayIndex(SUPABASE_URL, headers, body.date);
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/sauts`, {
+      const day_index = await nextDayIndex(SUPABASE_URL, headers, SAUTS_TABLE, body.date);
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${SAUTS_TABLE}`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'return=representation' },
         body: JSON.stringify({ ...body, day_index, source: 'manuel' }),
@@ -46,16 +49,16 @@ module.exports = async function handler(req, res) {
 
       if (fields.date) {
         const currentR = await fetch(
-          `${SUPABASE_URL}/rest/v1/sauts?id=eq.${id}&select=date`,
+          `${SUPABASE_URL}/rest/v1/${SAUTS_TABLE}?id=eq.${id}&select=date`,
           { headers }
         );
         const current = await currentR.json();
         if (current[0] && current[0].date !== fields.date) {
-          fields.day_index = await nextDayIndex(SUPABASE_URL, headers, fields.date);
+          fields.day_index = await nextDayIndex(SUPABASE_URL, headers, SAUTS_TABLE, fields.date);
         }
       }
 
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/sauts?id=eq.${id}`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${SAUTS_TABLE}?id=eq.${id}`, {
         method: 'PATCH',
         headers: { ...headers, Prefer: 'return=representation' },
         body: JSON.stringify(fields),
@@ -71,7 +74,7 @@ module.exports = async function handler(req, res) {
         res.status(400).json({ error: 'id manquant' });
         return;
       }
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/sauts?id=eq.${id}`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${SAUTS_TABLE}?id=eq.${id}`, {
         method: 'DELETE',
         headers,
       });
@@ -85,13 +88,13 @@ module.exports = async function handler(req, res) {
   }
 };
 
-async function fetchAllSauts(SUPABASE_URL, headers) {
+async function fetchAllSauts(SUPABASE_URL, headers, table) {
   const pageSize = 1000;
   let all = [];
   let from = 0;
   while (true) {
     const r = await fetch(
-      `${SUPABASE_URL}/rest/v1/sauts?select=*&order=date.asc,day_index.asc`,
+      `${SUPABASE_URL}/rest/v1/${table}?select=*&order=date.asc,day_index.asc`,
       { headers: { ...headers, Range: `${from}-${from + pageSize - 1}` } }
     );
     const batch = await r.json();
@@ -103,9 +106,9 @@ async function fetchAllSauts(SUPABASE_URL, headers) {
   return all;
 }
 
-async function nextDayIndex(SUPABASE_URL, headers, date) {
+async function nextDayIndex(SUPABASE_URL, headers, table, date) {
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/sauts?date=eq.${date}&select=day_index&order=day_index.desc&limit=1`,
+    `${SUPABASE_URL}/rest/v1/${table}?date=eq.${date}&select=day_index&order=day_index.desc&limit=1`,
     { headers }
   );
   const rows = await r.json();
