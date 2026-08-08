@@ -59,9 +59,11 @@ function showToast(msg){
   toastTimer = setTimeout(()=> t.classList.remove('show'), 2800);
 }
 
-// Initialise le verrou mot de passe. Appelle onReady(jumps) une fois authentifié
+// Initialise le verrou mot de passe. Appelle onReady(data) une fois authentifié
 // (au chargement si un mot de passe est déjà mémorisé, sinon après saisie).
-function initAuth(onReady){
+// endpoint : quel appel sert à la fois de vérification du mot de passe ET de première
+// récupération de données (par défaut /api/jumps, ex: /api/soufflerie pour cette page-là).
+function initAuth(onReady, endpoint){
   const overlay = document.getElementById('authOverlay');
   const input = document.getElementById('authInput');
   const err = document.getElementById('authError');
@@ -72,7 +74,7 @@ function initAuth(onReady){
     APP_PW = pw;
     if(!silent){ btn.disabled = true; btn.textContent = '...'; }
     try{
-      const data = await apiFetch();
+      const data = await apiFetch({ endpoint: endpoint || '/api/jumps' });
       localStorage.setItem('logbook_pw', pw);
       overlay.classList.remove('open');
       main.style.display = '';
