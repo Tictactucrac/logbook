@@ -162,7 +162,7 @@ function renderCharts(groups){
 
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
   Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-  const gridColor = '#2b3241';
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
   Object.values(charts).forEach(c => c.destroy());
 
   charts.voiles = new Chart(document.getElementById('chartVoiles'), {
@@ -177,7 +177,7 @@ function renderCharts(groups){
 
   charts.repartition = new Chart(document.getElementById('chartRepartition'), {
     type: 'doughnut',
-    data: { labels: doughnutGroups.map(g=>g.key), datasets: [{ data: doughnutGroups.map(g=>g.count), backgroundColor: palette, borderColor:'#1a1f29', borderWidth:2 }] },
+    data: { labels: doughnutGroups.map(g=>g.key), datasets: [{ data: doughnutGroups.map(g=>g.count), backgroundColor: palette, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }] },
     options: { plugins: { legend: { position:'bottom', labels:{ boxWidth:10, font:{size:11} } } }, cutout: '62%' }
   });
 }
