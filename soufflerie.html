@@ -76,9 +76,10 @@
       <section class="panel">
         <div class="panel-head">
           <span class="panel-title">Carnet de soufflerie</span>
+          <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
         </div>
         <table>
-          <thead><tr><th>N°</th><th>Date</th><th>Lieu</th><th>Durée</th><th>Travail</th><th></th></tr></thead>
+          <thead><tr><th>N°</th><th>Date</th><th>Lieu</th><th>Durée</th><th>Travail</th><th>Notes</th><th></th></tr></thead>
           <tbody id="souffBody"></tbody>
         </table>
       </section>
@@ -210,7 +211,7 @@ function renderTable(){
   const sorted = [...sessions].sort((a,b)=> a.date===b.date ? b.session_index-a.session_index : b.date.localeCompare(a.date));
   const body = document.getElementById('souffBody');
   if(!sorted.length){
-    body.innerHTML = `<tr><td colspan="6" class="empty-state">Aucune session enregistrée.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="7" class="empty-state">Aucune session enregistrée.</td></tr>`;
     return;
   }
   body.innerHTML = sorted.map(s => `
@@ -220,6 +221,7 @@ function renderTable(){
       <td data-label="Lieu">${s.lieu || '—'}</td>
       <td data-label="Durée" class="col-num">${s.duree_min || 0} min</td>
       <td data-label="Travail"><span class="tag">${s.travail || '—'}</span></td>
+      <td data-label="Notes" class="col-notes">${s.notes || ''}</td>
       <td data-label="" class="cell-actions"><button class="row-edit" data-edit="${s.id}" aria-label="Modifier">✎</button></td>
     </tr>
   `).join('');
@@ -237,7 +239,7 @@ function renderCharts(){
 
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
   Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-  const gridColor = '#2b3241';
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
   Object.values(charts).forEach(c=>c.destroy());
 
   charts.lieu = new Chart(document.getElementById('chartLieu'), {
@@ -268,6 +270,29 @@ initAuth((data)=>{
   sessions = data;
   refresh();
 }, '/api/soufflerie');
+
+// ---------- Export CSV ----------
+const EXPORT_FIELDS_SOUFF = [
+  { key:'global_n',  label:'N°',          get:s=>s.global_n },
+  { key:'date',      label:'Date',        get:s=>s.date },
+  { key:'lieu',      label:'Lieu',        get:s=>s.lieu },
+  { key:'duree_min', label:'Durée (min)', get:s=>s.duree_min },
+  { key:'travail',   label:'Travail',     get:s=>s.travail },
+  { key:'coach',     label:'Coach',       get:s=>s.coach },
+  { key:'partage',   label:'Partagée',    get:s=>s.partage ? 'oui' : 'non' },
+  { key:'prix',      label:'Prix (€)',    get:s=>s.prix },
+  { key:'notes',     label:'Notes',       get:s=>s.notes },
+  { key:'source',    label:'Source',      get:s=>s.source },
+];
+document.getElementById('openExport').addEventListener('click', ()=>{
+  computeGlobalSession(sessions);
+  openExportModal({
+    title: 'Exporter le carnet de soufflerie',
+    fields: EXPORT_FIELDS_SOUFF,
+    rows: [...sessions].sort((a,b)=> a.date===b.date ? a.session_index-b.session_index : a.date.localeCompare(b.date)),
+    filename: `soufflerie_${ACCOUNT}_${new Date().toISOString().slice(0,10)}.csv`,
+  });
+});
 
 // ---------- Modal ajout/édition ----------
 const overlay = document.getElementById('overlay');
