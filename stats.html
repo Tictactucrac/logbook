@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carnet de sauts — Statistiques avancées</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="/shared/app.js"></script>
+<link rel="stylesheet" href="/shared/style.css">
+<style>
+  /* Petits ajouts propres à cette page — le reste (.widget, .stats-widgets) vient de shared/style.css */
+  .stat-card{ display:flex; flex-direction:column; gap:10px; }
+  .stat-card-head{ display:flex; align-items:center; gap:8px; }
+  .drag-handle{ cursor:grab; color:var(--text-tertiary); font-size:13px; letter-spacing:-1px; flex-shrink:0; }
+  .drag-handle:active{ cursor:grabbing; }
+  .stat-card-head .widget-title{ margin-bottom:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .stat-remove{ background:none; border:none; color:var(--text-tertiary); font-size:15px; line-height:1; padding:2px 5px; border-radius:4px; flex-shrink:0; }
+  .stat-remove:hover{ color:var(--danger); }
+  .stat-card-controls{ display:flex; flex-wrap:wrap; gap:6px; }
+  .stat-card-controls select{ background:var(--bg-elevated); border:1px solid var(--border); border-radius:6px; color:var(--text-primary); font-size:11px; padding:4px 6px; font-family:var(--font-body); }
+  .stat-canvas{ max-height:220px; }
+</style>
+</head>
+<body>
+
+<!-- ---------- Verrou mot de passe ---------- -->
+<div class="overlay" id="authOverlay">
+  <div class="modal auth-modal">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style="margin:0 auto;">
+      <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2"/>
+      <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+      <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div class="modal-title" style="margin-top:12px;">Carnet de sauts</div>
+    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Entre le mot de passe pour accéder à tes données.</p>
+    <input type="password" id="authInput" placeholder="Mot de passe" autofocus>
+    <div class="auth-error" id="authError">Mot de passe incorrect.</div>
+    <button class="btn btn-primary" id="authSubmit" style="width:100%; margin-top:14px;">Entrer</button>
+  </div>
+</div>
+
+<div class="app" id="mainContent" style="display:none;">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2" opacity="0.9"/>
+        <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+        <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+        <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+        <line x1="5" y1="17" x2="8" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+        <line x1="26" y1="17" x2="29" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">VALENTIN</span>
+        <span class="brand-sub">Carnet de sauts</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a class="tab" href="index.html">Tableau de bord</a>
+      <a class="tab" href="carnet.html">Carnet</a>
+      <a class="tab" href="avions.html">Avions</a>
+      <a class="tab" href="dz.html">DZ</a>
+      <a class="tab" href="materiel.html">Matériel</a>
+      <a class="tab active" href="stats.html">Stats</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Statistiques avancées</span>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" id="resetLayoutBtn" style="padding:8px 14px; font-size:12.5px;">↺ Réinitialiser</button>
+          <button class="btn btn-primary" id="addWidgetBtn" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un graphique</button>
+        </div>
+      </div>
+      <p class="add-hint" style="margin:-6px 0 16px;">
+        Glisse une carte par sa poignée ⋮⋮ pour changer l'ordre. Choisis les données, la mesure et le type pour chacune —
+        c'est sauvegardé automatiquement dans ce navigateur.
+      </p>
+      <div class="stats-widgets" id="statsGrid"></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let jumps = [];
+let widgets = []; // { id, config:{groupBy, metric, chartType, year}, chart }
+let dragSrcId = null;
+
+const LAYOUT_KEY = 'logbook_stats_layout';
+
+const GROUP_OPTIONS = [
+  { value:'lieu',       label:'Lieu (DZ)' },
+  { value:'avion',      label:'Avion' },
+  { value:'principale', label:'Voile principale' },
+  { value:'parachute',  label:'Sac / harnais' },
+  { value:'travail',    label:'Type de saut' },
+  { value:'mois',       label:'Mois' },
+  { value:'annee',      label:'Année' },
+  { value:'chrono',     label:'Progression chronologique' },
+];
+const METRIC_OPTIONS = [
+  { value:'count',    label:'Nombre de sauts' },
+  { value:'altmoy',   label:'Altitude moyenne' },
+  { value:'altcumul', label:'Altitude cumulée (km)' },
+];
+const CHART_OPTIONS = [
+  { value:'bar',      label:'Barres' },
+  { value:'line',     label:'Courbe' },
+  { value:'doughnut', label:'Camembert' },
+];
+const PALETTE = ['#ff9b42','#5fc8e3','#6ee7a8','#b79cff','#ffb877','#8fd8ec','#96edbf','#c9b6ff','#e8894f','#4fb3cf'];
+
+function optName(list, value){ return (list.find(o=>o.value===value)||{}).label || value; }
+
+function titleFor(config){
+  if(config.groupBy === 'chrono') return 'Progression chronologique' + (config.year ? ` — ${config.year}` : '');
+  return `${optName(METRIC_OPTIONS, config.metric)} par ${optName(GROUP_OPTIONS, config.groupBy).toLowerCase()}` + (config.year ? ` — ${config.year}` : '');
+}
+
+// ---------- Agrégation ----------
+function metricValue(metric, count, altSum, altCount){
+  if(metric === 'altmoy')   return altCount ? Math.round(altSum/altCount) : 0;
+  if(metric === 'altcumul') return +(altSum/1000).toFixed(1);
+  return count;
+}
+
+function computeWidgetData(config){
+  const { groupBy, metric, year } = config;
+  let list = jumps;
+  if(year && groupBy !== 'annee'){ list = list.filter(j => j.date.startsWith(year)); }
+
+  if(groupBy === 'chrono'){
+    const sorted = [...list].sort((a,b)=> a.date===b.date ? a.day_index-b.day_index : a.date.localeCompare(b.date));
+    return { labels: sorted.map(j=>fmtDate(j.date)), values: sorted.map((_,i)=>i+1) };
+  }
+  if(groupBy === 'mois'){
+    const counts = Array(12).fill(0), altSums = Array(12).fill(0), altCounts = Array(12).fill(0);
+    list.forEach(j=>{
+      const idx = Number(j.date.slice(5,7))-1;
+      counts[idx]++;
+      if(j.altitude_m){ altSums[idx]+=j.altitude_m; altCounts[idx]++; }
+    });
+    return { labels: monthsFR, values: counts.map((c,i)=>metricValue(metric, c, altSums[i], altCounts[i])) };
+  }
+  if(groupBy === 'annee'){
+    const years = Array.from(new Set(list.map(j=>j.date.slice(0,4)))).sort();
+    const values = years.map(y=>{
+      const subset = list.filter(j=>j.date.startsWith(y));
+      const altSum = subset.reduce((s,j)=>s+(j.altitude_m||0),0);
+      const altCount = subset.filter(j=>j.altitude_m).length;
+      return metricValue(metric, subset.length, altSum, altCount);
+    });
+    return { labels: years, values };
+  }
+  // Champ texte : lieu / avion / principale / parachute / travail
+  const groups = groupStats(list, groupBy).filter(g=>g.key!=='—').slice(0,12);
+  const values = groups.map(g => metric==='altmoy' ? (g.avgAlt||0) : metric==='altcumul' ? +(((g.avgAlt||0)*g.count)/1000).toFixed(1) : g.count);
+  return { labels: groups.map(g=>g.key), values };
+}
+
+// ---------- Rendu d'un graphique ----------
+function renderWidgetChart(widget, canvas){
+  const { labels, values } = computeWidgetData(widget.config);
+  const type = widget.config.chartType;
+  const common = { maintainAspectRatio:false, plugins:{ legend:{ display: type==='doughnut', position:'bottom', labels:{boxWidth:9, font:{size:9.5}} } } };
+  let data, options;
+
+  if(type === 'doughnut'){
+    data = { labels, datasets:[{ data: values, backgroundColor: PALETTE, borderColor:'#1a1f29', borderWidth:2 }] };
+    options = { ...common, cutout:'58%' };
+  } else if(type === 'line'){
+    data = { labels, datasets:[{ data: values, borderColor:'#5fc8e3', backgroundColor:'rgba(95,200,227,0.12)', fill:true, tension:0.25, pointRadius: labels.length>30?0:2, borderWidth:2 }] };
+    options = { ...common, scales:{ x:{ grid:{display:false}, ticks:{maxTicksLimit:7, font:{size:9.5}} }, y:{ beginAtZero:true, grid:{color:'#2b3241'}, ticks:{font:{size:9.5}} } } };
+  } else {
+    const horizontal = labels.length > 6;
+    data = { labels, datasets:[{ data: values, backgroundColor:'#ff9b42', borderRadius:4, maxBarThickness:24 }] };
+    options = { ...common, indexAxis: horizontal ? 'y' : 'x',
+      scales:{ x:{ grid:{color:'#2b3241'}, ticks:{font:{size:9.5}} }, y:{ beginAtZero:true, ticks:{precision:0, font:{size:9.5}}, grid:{color: horizontal ? 'transparent' : '#2b3241'} } } };
+  }
+
+  Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
+  Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
+  widget.chart = new Chart(canvas, { type, data, options });
+}
+
+// ---------- Grille ----------
+function yearOptionsHTML(current){
+  const years = Array.from(new Set(jumps.map(j=>j.date.slice(0,4)))).sort().reverse();
+  return `<option value="" ${!current?'selected':''}>Toutes années</option>` + years.map(y=>`<option value="${y}" ${y===current?'selected':''}>${y}</option>`).join('');
+}
+
+function renderGrid(){
+  const grid = document.getElementById('statsGrid');
+  widgets.forEach(w=>{ if(w.chart){ w.chart.destroy(); w.chart = null; } });
+  grid.innerHTML = '';
+
+  if(!widgets.length){
+    grid.innerHTML = `<p class="empty-state" style="grid-column:1/-1;">Aucun graphique pour l'instant — clique sur "+ Ajouter un graphique".</p>`;
+    return;
+  }
+
+  widgets.forEach(widget=>{
+    const card = document.createElement('div');
+    card.className = 'widget stat-card';
+    card.draggable = true;
+    const isChrono = widget.config.groupBy === 'chrono';
+    const isAnnee = widget.config.groupBy === 'annee';
+    card.innerHTML = `
+      <div class="stat-card-head">
+        <span class="drag-handle" title="Glisser pour réordonner">⋮⋮</span>
+        <span class="widget-title">${titleFor(widget.config)}</span>
+        <button class="stat-remove" aria-label="Retirer ce graphique">×</button>
+      </div>
+      <div class="stat-card-controls">
+        <select data-role="groupBy">${GROUP_OPTIONS.map(o=>`<option value="${o.value}" ${o.value===widget.config.groupBy?'selected':''}>${o.label}</option>`).join('')}</select>
+        <select data-role="metric" ${isChrono?'style="display:none;"':''}>${METRIC_OPTIONS.map(o=>`<option value="${o.value}" ${o.value===widget.config.metric?'selected':''}>${o.label}</option>`).join('')}</select>
+        <select data-role="chartType" ${isChrono?'style="display:none;"':''}>${CHART_OPTIONS.map(o=>`<option value="${o.value}" ${o.value===widget.config.chartType?'selected':''}>${o.label}</option>`).join('')}</select>
+        <select data-role="year" ${isAnnee?'style="display:none;"':''}>${yearOptionsHTML(widget.config.year)}</select>
+      </div>
+      <canvas class="stat-canvas"></canvas>
+    `;
+    grid.appendChild(card);
+
+    card.querySelector('[data-role="groupBy"]').addEventListener('change', e=>{
+      widget.config.groupBy = e.target.value;
+      if(widget.config.groupBy === 'chrono') widget.config.chartType = 'line';
+      renderGrid(); saveLayout();
+    });
+    card.querySelector('[data-role="metric"]').addEventListener('change', e=>{ widget.config.metric = e.target.value; renderGrid(); saveLayout(); });
+    card.querySelector('[data-role="chartType"]').addEventListener('change', e=>{ widget.config.chartType = e.target.value; renderGrid(); saveLayout(); });
+    card.querySelector('[data-role="year"]').addEventListener('change', e=>{ widget.config.year = e.target.value; renderGrid(); saveLayout(); });
+    card.querySelector('.stat-remove').addEventListener('click', ()=>{
+      widgets = widgets.filter(w=>w!==widget);
+      renderGrid(); saveLayout();
+    });
+
+    card.addEventListener('dragstart', ()=>{ dragSrcId = widget.id; card.style.opacity = '0.4'; });
+    card.addEventListener('dragend', ()=>{ card.style.opacity = ''; });
+    card.addEventListener('dragover', e=> e.preventDefault());
+    card.addEventListener('drop', e=>{
+      e.preventDefault();
+      if(dragSrcId===null || dragSrcId===widget.id) return;
+      const srcIdx = widgets.findIndex(w=>w.id===dragSrcId);
+      const dstIdx = widgets.findIndex(w=>w===widget);
+      const [moved] = widgets.splice(srcIdx,1);
+      widgets.splice(dstIdx,0,moved);
+      renderGrid(); saveLayout();
+    });
+
+    renderWidgetChart(widget, card.querySelector('canvas'));
+  });
+}
+
+// ---------- Ajout / reset / persistance ----------
+function addWidget(config){
+  widgets.push({ id:'w'+Date.now()+Math.random().toString(36).slice(2,6), config:{...config}, chart:null });
+  renderGrid(); saveLayout();
+}
+function buildDefaultLayout(){
+  widgets = [
+    { id:'w1', config:{ groupBy:'chrono',     metric:'count', chartType:'line',     year:'' }, chart:null },
+    { id:'w2', config:{ groupBy:'mois',       metric:'count', chartType:'bar',      year:'' }, chart:null },
+    { id:'w3', config:{ groupBy:'principale', metric:'count', chartType:'doughnut', year:'' }, chart:null },
+  ];
+  renderGrid(); saveLayout();
+}
+function saveLayout(){
+  try{ localStorage.setItem(LAYOUT_KEY, JSON.stringify(widgets.map(w=>({ id:w.id, config:w.config })))); }catch(e){}
+}
+function loadLayout(){
+  try{ const raw = localStorage.getItem(LAYOUT_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+
+document.getElementById('addWidgetBtn').addEventListener('click', ()=>{
+  addWidget({ groupBy:'lieu', metric:'count', chartType:'bar', year:'' });
+});
+document.getElementById('resetLayoutBtn').addEventListener('click', ()=>{
+  if(!confirm('Réinitialiser les graphiques ?')) return;
+  localStorage.removeItem(LAYOUT_KEY);
+  buildDefaultLayout();
+});
+
+initAuth((data)=>{
+  jumps = data;
+  const saved = loadLayout();
+  if(saved && saved.length){
+    widgets = saved.map(s=>({ id:s.id, config:s.config, chart:null }));
+    renderGrid();
+  } else {
+    buildDefaultLayout();
+  }
+});
+</script>
+</body>
+</html>
