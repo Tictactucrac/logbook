@@ -13,6 +13,9 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // Compte actif : "valentin" (par défaut) ou "marie" -> table dédiée.
+  const SAUTS_TABLE = req.headers['x-account'] === 'marie' ? 'sauts_marie' : 'sauts';
+
   const rows = req.body && req.body.rows;
   if (!Array.isArray(rows) || rows.length === 0) {
     res.status(400).json({ error: 'Aucune ligne à importer' });
@@ -31,7 +34,7 @@ module.exports = async function handler(req, res) {
   const payload = rows.map(r => ({ ...r, source: 'import_ecole' }));
 
   try {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/sauts`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${SAUTS_TABLE}`, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
