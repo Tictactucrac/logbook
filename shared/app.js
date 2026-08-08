@@ -5,6 +5,12 @@
 
 let APP_PW = localStorage.getItem('logbook_pw') || '';
 
+const ACCOUNTS = [
+  { id:'valentin', label:'Valentin' },
+  { id:'marie',    label:'Marie' },
+];
+let ACCOUNT = localStorage.getItem('logbook_account') || 'valentin';
+
 const monthsFR = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 const fmtDate = d => { const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
 
@@ -12,7 +18,7 @@ async function apiFetch(opts = {}){
   const endpoint = opts.endpoint || '/api/jumps';
   const res = await fetch(endpoint + (opts.query || ''), {
     method: opts.method || 'GET',
-    headers: { 'Content-Type':'application/json', 'x-app-password': APP_PW },
+    headers: { 'Content-Type':'application/json', 'x-app-password': APP_PW, 'x-account': ACCOUNT },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if(res.status === 401){ const e = new Error('auth'); e.authError = true; throw e; }
@@ -88,8 +94,46 @@ function initAuth(onReady){
   if(APP_PW){ tryAuth(APP_PW, true); } else { overlay.classList.add('open'); }
 }
 
+// Rend le prénom du brand (en haut à gauche) cliquable, avec un petit menu pour
+// changer de compte (Valentin / Marie). Change de compte = recharge la page, pour
+// repartir sur un état propre (jumps, avionsMap, graphiques déjà en mémoire, etc.)
+function initAccountSwitcher(){
+  const nameEl = document.querySelector('.brand-name');
+  const wrapper = nameEl && nameEl.closest('.brand-text');
+  if(!nameEl || !wrapper) return;
+
+  const current = ACCOUNTS.find(a => a.id === ACCOUNT) || ACCOUNTS[0];
+  nameEl.textContent = current.label.toUpperCase();
+  nameEl.style.cursor = 'pointer';
+  wrapper.style.position = 'relative';
+
+  const menu = document.createElement('div');
+  menu.className = 'account-menu';
+  menu.innerHTML = ACCOUNTS.map(a =>
+    `<button data-account="${a.id}" class="${a.id === ACCOUNT ? 'active' : ''}">${a.label}</button>`
+  ).join('');
+  wrapper.appendChild(menu);
+
+  nameEl.addEventListener('click', e=>{
+    e.stopPropagation();
+    menu.classList.toggle('open');
+  });
+  document.addEventListener('click', ()=> menu.classList.remove('open'));
+
+  menu.querySelectorAll('[data-account]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const acc = btn.dataset.account;
+      if(acc === ACCOUNT) { menu.classList.remove('open'); return; }
+      localStorage.setItem('logbook_account', acc);
+      location.reload();
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   document.querySelectorAll('[data-soon]').forEach(t=>{
     t.addEventListener('click', ()=> showToast('Bientôt disponible'));
   });
+  initAccountSwitcher();
 });
