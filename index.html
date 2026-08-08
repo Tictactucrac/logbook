@@ -473,19 +473,12 @@ document.getElementById('importConfirm').addEventListener('click', async ()=>{
   const btn = document.getElementById('importConfirm');
   btn.disabled = true; btn.textContent = 'Import en cours…';
   try{
-    const res = await fetch('/api/import', {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json', 'x-app-password': APP_PW },
-      body: JSON.stringify({ rows: pendingImportRows }),
-    });
-    if(res.status === 401){ showToast('Session expirée — recharge la page'); return; }
-    if(!res.ok) throw new Error();
-    const data = await res.json();
+    const data = await apiFetch({ endpoint:'/api/import', method:'POST', body:{ rows: pendingImportRows } });
     closeImportModal();
     await reload();
     showToast(`${data.inserted} saut(s) importé(s)`);
   }catch(err){
-    showToast("Erreur pendant l'import");
+    showToast(err.authError ? 'Session expirée — recharge la page' : "Erreur pendant l'import");
   }finally{
     btn.disabled = false; btn.textContent = 'Confirmer l\'import';
   }
