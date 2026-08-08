@@ -139,7 +139,7 @@ function renderCharts(groups){
 
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
   Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
-  const gridColor = '#2b3241';
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
   Object.values(charts).forEach(c => c.destroy());
 
   charts.count = new Chart(document.getElementById('chartDZCount'), {
