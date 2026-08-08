@@ -9,6 +9,9 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  // Compte actif : "valentin" (par défaut) ou "marie" -> table dédiée.
+  const AVIONS_TABLE = req.headers['x-account'] === 'marie' ? 'avions_marie' : 'avions';
+
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
   const headers = {
@@ -19,7 +22,7 @@ module.exports = async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/avions?select=*&order=immat.asc`, { headers });
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${AVIONS_TABLE}?select=*&order=immat.asc`, { headers });
       const data = await r.json();
       res.status(r.status).json(data);
       return;
@@ -34,7 +37,7 @@ module.exports = async function handler(req, res) {
       }
       // Upsert sur la clé primaire `immat` : crée la ligne si elle n'existe pas encore,
       // sinon met juste à jour type_avion.
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/avions`, {
+      const r = await fetch(`${SUPABASE_URL}/rest/v1/${AVIONS_TABLE}`, {
         method: 'POST',
         headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
         body: JSON.stringify({ immat, type_avion: type_avion || null }),
