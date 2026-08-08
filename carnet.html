@@ -62,7 +62,10 @@
     <section class="panel">
       <div class="panel-head">
         <span class="panel-title">Carnet complet</span>
-        <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
+          <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
+        </div>
       </div>
 
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
@@ -132,6 +135,7 @@ const COLS = [
   { field:'altitude_m', label:'Alt.' },
   { field:'travail',    label:'Travail' },
   { field:'principale', label:'Principale' },
+  { field:'notes',      label:'Notes' },
 ];
 
 // ---------- Filtres + tri ----------
@@ -191,7 +195,7 @@ function renderHead(){
 function renderTable(sorted){
   const body = document.getElementById('carnetBody');
   if(!sorted.length){
-    body.innerHTML = `<tr><td colspan="8" class="empty-state">Aucun saut ne correspond à ces critères.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="9" class="empty-state">Aucun saut ne correspond à ces critères.</td></tr>`;
     return;
   }
   body.innerHTML = sorted.map(j => `
@@ -203,6 +207,7 @@ function renderTable(sorted){
       <td data-label="Alt.">${j.altitude_m ? j.altitude_m+' m' : '—'}</td>
       <td data-label="Travail"><span class="tag">${j.travail || '—'}</span></td>
       <td data-label="Principale">${j.principale || '—'}</td>
+      <td data-label="Notes" class="col-notes">${j.notes || ''}</td>
       <td data-label="" class="cell-actions"><button class="row-edit" data-edit="${j.id}" aria-label="Modifier">✎</button></td>
     </tr>
   `).join('');
@@ -211,11 +216,14 @@ function renderTable(sorted){
   });
 }
 
+let currentView = [];
+
 function refresh(){
   computeGlobalN(jumps); // affecte j.global_n à chaque saut (mêmes objets, par référence)
   populateYearFilter();
   const filtered = applyFilters(jumps);
   const sorted = applySort(filtered);
+  currentView = sorted;
   renderHead();
   renderTable(sorted);
   document.getElementById('resultCount').textContent =
@@ -231,6 +239,32 @@ initAuth((data)=>{ jumps = data; refresh(); });
 
 document.getElementById('searchInput').addEventListener('input', refresh);
 document.getElementById('yearFilter').addEventListener('change', refresh);
+
+// ---------- Export CSV (respecte la recherche/l'année actuellement affichées) ----------
+const EXPORT_FIELDS_SAUTS = [
+  { key:'global_n',   label:'N°',            get:j=>j.global_n },
+  { key:'date',       label:'Date',          get:j=>j.date },
+  { key:'lieu',       label:'Lieu',          get:j=>j.lieu },
+  { key:'avion',      label:'Avion',         get:j=>j.avion },
+  { key:'altitude_m', label:'Altitude (m)',  get:j=>j.altitude_m },
+  { key:'travail',    label:'Travail',       get:j=>j.travail },
+  { key:'libe',       label:'Libé',          get:j=>j.libe },
+  { key:'plieur',     label:'Plieur',        get:j=>j.plieur },
+  { key:'parachute',  label:'Parachute',     get:j=>j.parachute },
+  { key:'principale', label:'Principale',    get:j=>j.principale },
+  { key:'reserve',    label:'Réserve',       get:j=>j.reserve },
+  { key:'aad',        label:'AAD',           get:j=>j.aad },
+  { key:'notes',      label:'Notes',         get:j=>j.notes },
+  { key:'source',     label:'Source',        get:j=>j.source },
+];
+document.getElementById('openExport').addEventListener('click', ()=>{
+  openExportModal({
+    title: 'Exporter le carnet',
+    fields: EXPORT_FIELDS_SAUTS,
+    rows: currentView,
+    filename: `carnet_sauts_${ACCOUNT}_${new Date().toISOString().slice(0,10)}.csv`,
+  });
+});
 
 // ---------- Modal ajout/édition (logique identique à index.html) ----------
 const overlay = document.getElementById('overlay');
