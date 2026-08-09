@@ -180,6 +180,12 @@
 
   .col-notes{ font-style:italic; font-size:12px; color:var(--text-secondary); }
 
+  .resizable-table{ table-layout:fixed; }
+  .resizable-table th{ position:relative; }
+  .col-resize-handle{ position:absolute; top:0; right:-3px; width:7px; height:100%; cursor:col-resize; z-index:5; }
+  .col-resize-handle:hover, .col-resize-handle.resizing{ background:var(--amber); opacity:.5; }
+  @media (max-width:640px){ .col-resize-handle{ display:none; } }
+
   .export-fields{ display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; margin-bottom:6px; padding-right:4px; }
   .export-field-row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary); cursor:pointer; }
   .export-field-row input{ accent-color:var(--amber); width:15px; height:15px; flex-shrink:0; }
