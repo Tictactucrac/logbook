@@ -62,7 +62,8 @@
     <section class="panel">
       <div class="panel-head">
         <span class="panel-title">Carnet complet</span>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-ghost" id="openReplace" style="padding:8px 14px; font-size:12.5px;">🔍 Rechercher/remplacer</button>
           <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
           <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
         </div>
@@ -117,6 +118,53 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal rechercher/remplacer -->
+<div class="overlay" id="replaceOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="modal-title">Rechercher / remplacer</span>
+      <button class="modal-close" id="replaceClose">×</button>
+    </div>
+    <p style="color:var(--text-secondary); font-size:13px; margin-bottom:14px;">
+      Remplace une valeur par une autre sur un champ donné, sur tous les sauts concernés. Un aperçu est toujours montré avant confirmation.
+    </p>
+    <div class="form-grid" style="margin-bottom:14px;">
+      <div class="field full">
+        <label>Champ</label>
+        <select id="rp-field">
+          <option value="lieu">Lieu</option>
+          <option value="avion">Avion</option>
+          <option value="travail">Travail</option>
+          <option value="parachute">Parachute</option>
+          <option value="principale" selected>Principale</option>
+          <option value="reserve">Réserve</option>
+          <option value="aad">AAD</option>
+          <option value="libe">Libé</option>
+          <option value="plieur">Plieur</option>
+          <option value="notes">Notes</option>
+        </select>
+      </div>
+      <div class="field"><label>Rechercher</label><input type="text" id="rp-search" placeholder="Safire 2 120"></div>
+      <div class="field"><label>Remplacer par</label><input type="text" id="rp-replace" placeholder="Sabre 2 120"></div>
+      <div class="field full">
+        <label style="display:flex; align-items:center; gap:8px; text-transform:none; font-weight:400; color:var(--text-secondary); font-size:12.5px;">
+          <input type="checkbox" id="rp-exact" checked style="width:15px; height:15px; accent-color:var(--amber);">
+          Valeur exacte uniquement (décoche pour un remplacement partiel — utile pour les notes)
+        </label>
+      </div>
+    </div>
+    <button type="button" class="btn btn-ghost" id="rp-preview" style="width:100%; margin-bottom:14px;">Aperçu</button>
+    <p id="replaceSummary" style="color:var(--text-secondary); font-size:13px; margin-bottom:10px; display:none;"></p>
+    <div id="replaceList" style="max-height:300px; overflow-y:auto; border:1px solid var(--border-soft); border-radius:8px; display:none;"></div>
+    <div class="modal-footer">
+      <div style="display:flex; gap:10px; margin-left:auto;">
+        <button type="button" class="btn btn-ghost" id="replaceCancel">Annuler</button>
+        <button type="button" class="btn btn-primary" id="replaceConfirm" style="display:none;">Confirmer le remplacement</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -347,6 +395,98 @@ document.getElementById('deleteBtn').addEventListener('click', async ()=>{
   }catch(err){
     showToast('Erreur lors de la suppression');
   }
+});
+
+// ---------- Rechercher / remplacer ----------
+const replaceOverlay = document.getElementById('replaceOverlay');
+let pendingReplaceMatches = [];
+
+function openReplaceModal(){
+  document.getElementById('rp-field').value = 'principale';
+  document.getElementById('rp-search').value = '';
+  document.getElementById('rp-replace').value = '';
+  document.getElementById('rp-exact').checked = true;
+  document.getElementById('replaceSummary').style.display = 'none';
+  document.getElementById('replaceList').style.display = 'none';
+  document.getElementById('replaceConfirm').style.display = 'none';
+  pendingReplaceMatches = [];
+  replaceOverlay.classList.add('open');
+}
+function closeReplaceModal(){ replaceOverlay.classList.remove('open'); }
+function fieldLabel(field){
+  const opt = document.querySelector(`#rp-field option[value="${field}"]`);
+  return opt ? opt.textContent : field;
+}
+
+document.getElementById('openReplace').addEventListener('click', openReplaceModal);
+document.getElementById('replaceClose').addEventListener('click', closeReplaceModal);
+document.getElementById('replaceCancel').addEventListener('click', closeReplaceModal);
+replaceOverlay.addEventListener('click', e=>{ if(e.target === replaceOverlay) closeReplaceModal(); });
+
+document.getElementById('rp-preview').addEventListener('click', ()=>{
+  const field = document.getElementById('rp-field').value;
+  const search = document.getElementById('rp-search').value.trim();
+  const replace = document.getElementById('rp-replace').value;
+  const exact = document.getElementById('rp-exact').checked;
+
+  if(!search){ showToast('Indique une valeur à rechercher'); return; }
+
+  pendingReplaceMatches = jumps.filter(j=>{
+    const v = j[field] || '';
+    return exact ? v === search : v.includes(search);
+  });
+
+  const summary = document.getElementById('replaceSummary');
+  const list = document.getElementById('replaceList');
+  summary.style.display = 'block';
+  list.style.display = 'block';
+
+  if(!pendingReplaceMatches.length){
+    summary.textContent = `Aucun saut trouvé avec ${fieldLabel(field)} ${exact ? 'égal à' : 'contenant'} "${search}".`;
+    list.innerHTML = '';
+    document.getElementById('replaceConfirm').style.display = 'none';
+    return;
+  }
+
+  summary.textContent = `${pendingReplaceMatches.length} saut(s) trouvé(s) — voici ce qui va changer :`;
+  list.innerHTML = pendingReplaceMatches.map(j=>{
+    const oldVal = j[field] || '';
+    const newVal = exact ? replace : oldVal.split(search).join(replace);
+    return `
+      <div class="import-row">
+        <span class="im-date">${fmtDate(j.date)}</span>
+        <span class="im-info">"${oldVal}" → "${newVal}"</span>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('replaceConfirm').style.display = '';
+});
+
+document.getElementById('replaceConfirm').addEventListener('click', async ()=>{
+  if(!pendingReplaceMatches.length) return;
+  const field = document.getElementById('rp-field').value;
+  const search = document.getElementById('rp-search').value.trim();
+  const replace = document.getElementById('rp-replace').value;
+  const exact = document.getElementById('rp-exact').checked;
+  const btn = document.getElementById('replaceConfirm');
+  btn.disabled = true; btn.textContent = 'Remplacement en cours…';
+
+  let done = 0, failed = 0;
+  for(const j of pendingReplaceMatches){
+    const oldVal = j[field] || '';
+    const newVal = exact ? replace : oldVal.split(search).join(replace);
+    try{
+      await apiFetch({ method:'PATCH', body:{ id:j.id, [field]: newVal } });
+      done++;
+    }catch(e){
+      failed++;
+    }
+  }
+
+  closeReplaceModal();
+  await reload();
+  showToast(failed ? `${done} remplacé(s), ${failed} échec(s)` : `${done} saut(s) mis à jour`);
+  btn.disabled = false; btn.textContent = 'Confirmer le remplacement';
 });
 </script>
 </body>
