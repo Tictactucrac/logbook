@@ -83,7 +83,8 @@
       </div>
       <p id="resultCount" style="color:var(--text-secondary); font-size:12.5px; margin:0 0 14px;"></p>
 
-      <table>
+      <table class="resizable-table">
+        <colgroup id="carnetColgroup"></colgroup>
         <thead><tr id="carnetHeadRow"></tr></thead>
         <tbody id="carnetBody"></tbody>
       </table>
@@ -106,9 +107,9 @@
         <div class="field"><label>Avion</label><input type="text" id="f-avion" placeholder="F-GPBK"></div>
         <div class="field"><label>Altitude (m)</label><input type="number" step="100" id="f-altitude"></div>
         <div class="field full"><label>Travail</label><input type="text" id="f-travail" placeholder="FF, Init FF, VR, Vidéo…" required></div>
-        <div class="field"><label>Parachute</label><input type="text" id="f-parachute"></div>
+        <div class="field"><label>Sac</label><input type="text" id="f-parachute"></div>
         <div class="field"><label>Principale</label><input type="text" id="f-principale"></div>
-        <div class="field"><label>Réserve</label><input type="text" id="f-reserve"></div>
+        <div class="field"><label>Secours</label><input type="text" id="f-reserve"></div>
         <div class="field"><label>AAD</label><input type="text" id="f-aad"></div>
         <div class="field full"><label>Notes</label><textarea id="f-notes" placeholder="avec…"></textarea></div>
       </div>
@@ -140,9 +141,9 @@
           <option value="lieu">Lieu</option>
           <option value="avion">Avion</option>
           <option value="travail">Travail</option>
-          <option value="parachute">Parachute</option>
+          <option value="parachute">Sac</option>
           <option value="principale" selected>Principale</option>
-          <option value="reserve">Réserve</option>
+          <option value="reserve">Secours</option>
           <option value="aad">AAD</option>
           <option value="libe">Libé</option>
           <option value="plieur">Plieur</option>
@@ -185,8 +186,16 @@ const COLS = [
   { field:'altitude_m', label:'Alt.',       cell:j => `<td data-label="Alt.">${j.altitude_m ? j.altitude_m+' m' : '—'}</td>` },
   { field:'travail',    label:'Travail',    cell:j => `<td data-label="Travail"><span class="tag">${j.travail || '—'}</span></td>` },
   { field:'principale', label:'Principale', cell:j => `<td data-label="Principale">${j.principale || '—'}</td>` },
+  { field:'parachute',  label:'Sac',        cell:j => `<td data-label="Sac">${j.parachute || '—'}</td>` },
+  { field:'reserve',    label:'Secours',    cell:j => `<td data-label="Secours">${j.reserve || '—'}</td>` },
+  { field:'aad',        label:'AAD',        cell:j => `<td data-label="AAD">${j.aad || '—'}</td>` },
+  { field:'libe',       label:'Libé',       cell:j => `<td data-label="Libé">${j.libe || '—'}</td>` },
+  { field:'plieur',     label:'Plieur',     cell:j => `<td data-label="Plieur">${j.plieur || '—'}</td>` },
   { field:'notes',      label:'Notes',      cell:j => `<td data-label="Notes" class="col-notes">${j.notes || ''}</td>` },
 ];
+// Nouvelles colonnes masquées par défaut (pas encore choisies par l'utilisateur) pour ne
+// pas surcharger d'un coup une vue déjà personnalisée. Restent bien sûr cochables.
+const DEFAULT_HIDDEN_COLS = ['parachute','reserve','aad','libe','plieur'];
 
 // Visibilité des colonnes : préférence d'interface, donc volontairement PARTAGÉE entre
 // comptes (pas de préfixe par compte), contrairement aux données elles-mêmes.
@@ -196,7 +205,10 @@ function loadColumnVisibility(){
   return {};
 }
 let columnVisibility = loadColumnVisibility();
-function isColVisible(field){ return columnVisibility[field] !== false; }
+function isColVisible(field){
+  if(field in columnVisibility) return columnVisibility[field] !== false;
+  return !DEFAULT_HIDDEN_COLS.includes(field);
+}
 function saveColumnVisibility(){
   try{ localStorage.setItem(COLUMNS_KEY, JSON.stringify(columnVisibility)); }catch(e){}
 }
@@ -217,6 +229,32 @@ document.getElementById('columnsBtn').addEventListener('click', ()=>{
   document.getElementById('columnsPanel').classList.toggle('open');
 });
 initColumnsPanel();
+
+// Largeur des colonnes : même logique de préférence partagée, avec des largeurs par
+// défaut raisonnables par champ. Ajustée en glissant le bord droit d'un en-tête.
+const WIDTHS_KEY = 'logbook_carnet_col_widths';
+const DEFAULT_COL_WIDTH = {
+  global_n:56, date:92, lieu:150, avion:90, altitude_m:76, travail:120,
+  principale:140, parachute:140, reserve:120, aad:96, libe:100, plieur:110, notes:260,
+};
+function loadColumnWidths(){
+  try{ const raw = localStorage.getItem(WIDTHS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return {};
+}
+let columnWidths = loadColumnWidths();
+function colWidth(field){ return columnWidths[field] || DEFAULT_COL_WIDTH[field] || 120; }
+function saveColumnWidths(){
+  try{ localStorage.setItem(WIDTHS_KEY, JSON.stringify(columnWidths)); }catch(e){}
+}
+function applyColWidth(field, width){
+  const col = document.querySelector(`#carnetColgroup col[data-field="${field}"]`);
+  if(col) col.style.width = width+'px';
+}
+function renderColgroup(visibleCols){
+  document.getElementById('carnetColgroup').innerHTML =
+    visibleCols.map(c => `<col data-field="${c.field}" style="width:${colWidth(c.field)}px">`).join('')
+    + `<col style="width:40px">`;
+}
 
 // ---------- Filtres + tri ----------
 function applyFilters(list){
@@ -257,17 +295,45 @@ function populateYearFilter(){
 
 // ---------- Rendu ----------
 function renderHead(){
+  const visibleCols = COLS.filter(c=>isColVisible(c.field));
+  renderColgroup(visibleCols);
+
   const row = document.getElementById('carnetHeadRow');
-  row.innerHTML = COLS.filter(c=>isColVisible(c.field)).map(c=>{
+  row.innerHTML = visibleCols.map(c=>{
     const arrow = sortState.field === c.field ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
-    return `<th data-sort="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${arrow}</th>`;
+    return `<th data-sort="${c.field}"><span class="th-label" style="cursor:pointer; user-select:none;">${c.label}${arrow}</span><span class="col-resize-handle" data-resize="${c.field}"></span></th>`;
   }).join('') + '<th></th>';
-  row.querySelectorAll('th[data-sort]').forEach(th=>{
-    th.addEventListener('click', ()=>{
-      const field = th.dataset.sort;
+
+  row.querySelectorAll('.th-label').forEach(span=>{
+    span.addEventListener('click', ()=>{
+      const field = span.closest('th').dataset.sort;
       if(sortState.field === field){ sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc'; }
       else { sortState = { field, dir: (field==='date'||field==='global_n') ? 'desc' : 'asc' }; }
       refresh();
+    });
+  });
+
+  row.querySelectorAll('[data-resize]').forEach(handle=>{
+    handle.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      const field = handle.dataset.resize;
+      const startX = e.clientX;
+      const startWidth = colWidth(field);
+      handle.classList.add('resizing');
+
+      function onMove(ev){
+        const newWidth = Math.max(40, startWidth + (ev.clientX - startX));
+        columnWidths[field] = newWidth;
+        applyColWidth(field, newWidth);
+      }
+      function onUp(){
+        handle.classList.remove('resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        saveColumnWidths();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   });
 }
@@ -321,9 +387,9 @@ const EXPORT_FIELDS_SAUTS = [
   { key:'travail',    label:'Travail',       get:j=>j.travail },
   { key:'libe',       label:'Libé',          get:j=>j.libe },
   { key:'plieur',     label:'Plieur',        get:j=>j.plieur },
-  { key:'parachute',  label:'Parachute',     get:j=>j.parachute },
+  { key:'parachute',  label:'Sac',           get:j=>j.parachute },
   { key:'principale', label:'Principale',    get:j=>j.principale },
-  { key:'reserve',    label:'Réserve',       get:j=>j.reserve },
+  { key:'reserve',    label:'Secours',       get:j=>j.reserve },
   { key:'aad',        label:'AAD',           get:j=>j.aad },
   { key:'notes',      label:'Notes',         get:j=>j.notes },
   { key:'source',     label:'Source',        get:j=>j.source },
