@@ -63,11 +63,13 @@
       <div class="panel-head">
         <span class="panel-title">Carnet complet</span>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="customize-btn" id="columnsBtn">⚙ Colonnes</button>
           <button class="btn btn-ghost" id="openReplace" style="padding:8px 14px; font-size:12.5px;">🔍 Rechercher/remplacer</button>
           <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
           <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
         </div>
       </div>
+      <div class="customize-panel" id="columnsPanel"></div>
 
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
         <div class="field" style="flex:1; min-width:220px;">
@@ -176,15 +178,45 @@ let editingId = null;
 let sortState = { field: 'date', dir: 'desc' };
 
 const COLS = [
-  { field:'global_n',   label:'N°' },
-  { field:'date',       label:'Date' },
-  { field:'lieu',       label:'Lieu' },
-  { field:'avion',      label:'Avion' },
-  { field:'altitude_m', label:'Alt.' },
-  { field:'travail',    label:'Travail' },
-  { field:'principale', label:'Principale' },
-  { field:'notes',      label:'Notes' },
+  { field:'global_n',   label:'N°',         cell:j => `<td data-label="N°" class="col-num">${j.global_n}</td>` },
+  { field:'date',       label:'Date',       cell:j => `<td data-label="Date" class="col-date">${fmtDate(j.date)}</td>` },
+  { field:'lieu',       label:'Lieu',       cell:j => `<td data-label="Lieu">${j.lieu || '—'}</td>` },
+  { field:'avion',      label:'Avion',      cell:j => `<td data-label="Avion">${j.avion || '—'}</td>` },
+  { field:'altitude_m', label:'Alt.',       cell:j => `<td data-label="Alt.">${j.altitude_m ? j.altitude_m+' m' : '—'}</td>` },
+  { field:'travail',    label:'Travail',    cell:j => `<td data-label="Travail"><span class="tag">${j.travail || '—'}</span></td>` },
+  { field:'principale', label:'Principale', cell:j => `<td data-label="Principale">${j.principale || '—'}</td>` },
+  { field:'notes',      label:'Notes',      cell:j => `<td data-label="Notes" class="col-notes">${j.notes || ''}</td>` },
 ];
+
+// Visibilité des colonnes : préférence d'interface, donc volontairement PARTAGÉE entre
+// comptes (pas de préfixe par compte), contrairement aux données elles-mêmes.
+const COLUMNS_KEY = 'logbook_carnet_columns';
+function loadColumnVisibility(){
+  try{ const raw = localStorage.getItem(COLUMNS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return {};
+}
+let columnVisibility = loadColumnVisibility();
+function isColVisible(field){ return columnVisibility[field] !== false; }
+function saveColumnVisibility(){
+  try{ localStorage.setItem(COLUMNS_KEY, JSON.stringify(columnVisibility)); }catch(e){}
+}
+function initColumnsPanel(){
+  const panel = document.getElementById('columnsPanel');
+  panel.innerHTML = COLS.map(c =>
+    `<label><input type="checkbox" data-col="${c.field}" ${isColVisible(c.field) ? 'checked' : ''}> ${c.label}</label>`
+  ).join('');
+  panel.querySelectorAll('[data-col]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      columnVisibility[cb.dataset.col] = cb.checked;
+      saveColumnVisibility();
+      refresh();
+    });
+  });
+}
+document.getElementById('columnsBtn').addEventListener('click', ()=>{
+  document.getElementById('columnsPanel').classList.toggle('open');
+});
+initColumnsPanel();
 
 // ---------- Filtres + tri ----------
 function applyFilters(list){
@@ -226,7 +258,7 @@ function populateYearFilter(){
 // ---------- Rendu ----------
 function renderHead(){
   const row = document.getElementById('carnetHeadRow');
-  row.innerHTML = COLS.map(c=>{
+  row.innerHTML = COLS.filter(c=>isColVisible(c.field)).map(c=>{
     const arrow = sortState.field === c.field ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
     return `<th data-sort="${c.field}" style="cursor:pointer; user-select:none;">${c.label}${arrow}</th>`;
   }).join('') + '<th></th>';
@@ -242,23 +274,14 @@ function renderHead(){
 
 function renderTable(sorted){
   const body = document.getElementById('carnetBody');
+  const visibleCols = COLS.filter(c=>isColVisible(c.field));
   if(!sorted.length){
-    body.innerHTML = `<tr><td colspan="9" class="empty-state">Aucun saut ne correspond à ces critères.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="${visibleCols.length+1}" class="empty-state">Aucun saut ne correspond à ces critères.</td></tr>`;
     return;
   }
-  body.innerHTML = sorted.map(j => `
-    <tr>
-      <td data-label="N°" class="col-num">${j.global_n}</td>
-      <td data-label="Date" class="col-date">${fmtDate(j.date)}</td>
-      <td data-label="Lieu">${j.lieu || '—'}</td>
-      <td data-label="Avion">${j.avion || '—'}</td>
-      <td data-label="Alt.">${j.altitude_m ? j.altitude_m+' m' : '—'}</td>
-      <td data-label="Travail"><span class="tag">${j.travail || '—'}</span></td>
-      <td data-label="Principale">${j.principale || '—'}</td>
-      <td data-label="Notes" class="col-notes">${j.notes || ''}</td>
-      <td data-label="" class="cell-actions"><button class="row-edit" data-edit="${j.id}" aria-label="Modifier">✎</button></td>
-    </tr>
-  `).join('');
+  body.innerHTML = sorted.map(j =>
+    `<tr>${visibleCols.map(c=>c.cell(j)).join('')}<td data-label="" class="cell-actions"><button class="row-edit" data-edit="${j.id}" aria-label="Modifier">✎</button></td></tr>`
+  ).join('');
   body.querySelectorAll('[data-edit]').forEach(btn=>{
     btn.addEventListener('click', ()=> openModal(Number(btn.dataset.edit)));
   });
