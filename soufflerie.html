@@ -78,8 +78,25 @@
           <span class="panel-title">Carnet de soufflerie</span>
           <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
         </div>
-        <table>
-          <thead><tr><th>N°</th><th>Date</th><th>Lieu</th><th>Durée</th><th>Travail</th><th>Notes</th><th></th></tr></thead>
+        <table class="resizable-table">
+          <colgroup id="souffColgroup">
+            <col data-field="global_n">
+            <col data-field="date">
+            <col data-field="lieu">
+            <col data-field="duree_min">
+            <col data-field="travail">
+            <col data-field="notes">
+            <col style="width:40px">
+          </colgroup>
+          <thead><tr>
+            <th>N°<span class="col-resize-handle" data-resize="global_n"></span></th>
+            <th>Date<span class="col-resize-handle" data-resize="date"></span></th>
+            <th>Lieu<span class="col-resize-handle" data-resize="lieu"></span></th>
+            <th>Durée<span class="col-resize-handle" data-resize="duree_min"></span></th>
+            <th>Travail<span class="col-resize-handle" data-resize="travail"></span></th>
+            <th>Notes<span class="col-resize-handle" data-resize="notes"></span></th>
+            <th></th>
+          </tr></thead>
           <tbody id="souffBody"></tbody>
         </table>
       </section>
@@ -166,6 +183,50 @@
 <script>
 let sessions = [];
 let charts = {};
+
+// ---------- Largeur des colonnes (redimensionnable, en-tête statique donc branché une fois) ----------
+const WIDTHS_KEY = 'logbook_soufflerie_col_widths';
+const DEFAULT_COL_WIDTH = { global_n:56, date:92, lieu:150, duree_min:90, travail:120, notes:260 };
+let columnWidths = (function(){
+  try{ const raw = localStorage.getItem(WIDTHS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  return {};
+})();
+function colWidth(field){ return columnWidths[field] || DEFAULT_COL_WIDTH[field] || 100; }
+function saveColumnWidths(){
+  try{ localStorage.setItem(WIDTHS_KEY, JSON.stringify(columnWidths)); }catch(e){}
+}
+function applyColWidth(field, width){
+  const col = document.querySelector(`#souffColgroup col[data-field="${field}"]`);
+  if(col) col.style.width = width+'px';
+}
+function initResizableColumns(){
+  document.querySelectorAll('#souffColgroup col[data-field]').forEach(col=>{
+    col.style.width = colWidth(col.dataset.field) + 'px';
+  });
+  document.querySelectorAll('[data-resize]').forEach(handle=>{
+    handle.addEventListener('mousedown', e=>{
+      e.preventDefault();
+      const field = handle.dataset.resize;
+      const startX = e.clientX;
+      const startWidth = colWidth(field);
+      handle.classList.add('resizing');
+      function onMove(ev){
+        const newWidth = Math.max(40, startWidth + (ev.clientX - startX));
+        columnWidths[field] = newWidth;
+        applyColWidth(field, newWidth);
+      }
+      function onUp(){
+        handle.classList.remove('resizing');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        saveColumnWidths();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+}
+initResizableColumns();
 let editingId = null;
 let pendingImportRows = [];
 
