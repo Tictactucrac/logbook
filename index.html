@@ -145,6 +145,7 @@
     <form id="jumpForm">
       <div class="form-grid">
         <div class="field"><label>Date</label><input type="date" id="f-date" required></div>
+        <div class="field" id="positionField" style="display:none;"><label>Ordre du jour</label><select id="f-position"></select></div>
         <div class="field"><label>Lieu</label><input type="text" id="f-lieu" required></div>
         <div class="field"><label>Avion</label><input type="text" id="f-avion" placeholder="F-GPBK"></div>
         <div class="field"><label>Altitude (m)</label><input type="number" step="100" id="f-altitude"></div>
@@ -324,9 +325,30 @@ function closeModal(){ overlay.classList.remove('open'); }
 function updatePreview(){
   const date = document.getElementById('f-date').value;
   const preview = document.getElementById('modalPreview');
-  if(!date){ preview.textContent=''; return; }
+  const posField = document.getElementById('positionField');
+  const posSelect = document.getElementById('f-position');
+
+  if(!date){ preview.textContent=''; posField.style.display='none'; return; }
+
+  const editingJump = editingId ? jumps.find(j=>j.id===editingId) : null;
+  const sameDateAsBefore = editingJump && editingJump.date === date;
   const others = jumps.filter(j=> j.date===date && j.id!==editingId);
-  preview.textContent = `→ Ce sera le saut n°${others.length+1} de cette journée`;
+  const total = others.length + 1;
+
+  if(total <= 1 || !sameDateAsBefore){
+    preview.textContent = `→ Ce sera le saut n°${total} de cette journée`;
+    posField.style.display = 'none';
+    return;
+  }
+
+  const combined = [...others, editingJump].sort((a,b)=> a.day_index - b.day_index);
+  const currentPos = combined.findIndex(j=>j.id===editingJump.id) + 1;
+
+  preview.textContent = `→ ${total} sauts ce jour-là au total`;
+  posField.style.display = '';
+  posSelect.innerHTML = Array.from({length: total}, (_,i)=> i+1)
+    .map(n => `<option value="${n}" ${n===currentPos ? 'selected' : ''}>${n}${n===1 ? 'er' : 'e'} saut de la journée</option>`)
+    .join('');
 }
 document.getElementById('f-date').addEventListener('input', updatePreview);
 document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -349,10 +371,39 @@ form.addEventListener('submit', async e=>{
     aad: document.getElementById('f-aad').value,
     notes: document.getElementById('f-notes').value,
   };
+  // Réordonnancement explicite : seulement si le sélecteur de position est visible
+  // (édition d'un saut, même date, avec d'autres sauts ce jour-là) et que la position
+  // choisie diffère de la position actuelle.
+  let reorder = null;
+  if(editingId && document.getElementById('positionField').style.display !== 'none'){
+    const editingJump = jumps.find(j=>j.id===editingId);
+    const others = jumps.filter(j => j.date===data.date && j.id!==editingId);
+    const combined = [...others, editingJump].sort((a,b)=> a.day_index - b.day_index);
+    const oldPos = combined.findIndex(j=>j.id===editingId) + 1;
+    const newPos = Number(document.getElementById('f-position').value);
+    if(newPos !== oldPos){ reorder = { others, oldPos, newPos }; }
+  }
+
   saveBtn.disabled = true; saveBtn.textContent = '...';
   try{
     if(editingId){
-      await apiFetch({ method:'PATCH', body:{ id:editingId, ...data } });
+      if(reorder){
+        await apiFetch({ method:'PATCH', body:{ id:editingId, ...data, day_index:100000 } });
+        if(reorder.newPos < reorder.oldPos){
+          const affected = reorder.others
+            .filter(j=> j.day_index >= reorder.newPos && j.day_index <= reorder.oldPos - 1)
+            .sort((a,b)=> b.day_index - a.day_index);
+          for(const j of affected){ await apiFetch({ method:'PATCH', body:{ id:j.id, day_index:j.day_index+1 } }); }
+        } else {
+          const affected = reorder.others
+            .filter(j=> j.day_index <= reorder.newPos && j.day_index >= reorder.oldPos + 1)
+            .sort((a,b)=> a.day_index - b.day_index);
+          for(const j of affected){ await apiFetch({ method:'PATCH', body:{ id:j.id, day_index:j.day_index-1 } }); }
+        }
+        await apiFetch({ method:'PATCH', body:{ id:editingId, day_index:reorder.newPos } });
+      } else {
+        await apiFetch({ method:'PATCH', body:{ id:editingId, ...data } });
+      }
       showToast('Saut modifié');
     } else {
       await apiFetch({ method:'POST', body:data });
