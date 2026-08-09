@@ -59,16 +59,32 @@
   </header>
 
   <main>
-    <section class="hero bracket">
+    <section class="hero bracket" style="align-items:flex-start;">
       <div class="hero-main">
         <span class="hero-label">Total sauts</span>
         <span class="hero-number" id="heroTotal">—</span>
         <span class="hero-delta" id="heroDelta"></span>
       </div>
-      <div class="hero-stats">
-        <div class="hero-stat"><span class="hero-stat-value" id="statYear">–</span><span class="hero-stat-label">Cette année</span></div>
-        <div class="hero-stat"><span class="hero-stat-value" id="statDZ">–</span><span class="hero-stat-label">Dropzones</span></div>
-        <div class="hero-stat"><span class="hero-stat-value" id="statAlt">–</span><span class="hero-stat-label">Altitude cumulée</span></div>
+      <div class="hero-stat-groups">
+        <div class="hero-stat-group">
+          <span class="hero-group-label">Cette année</span>
+          <div class="hero-stats">
+            <div class="hero-stat"><span class="hero-stat-value" id="statYearJumps">–</span><span class="hero-stat-label">Sauts</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statYearDZ">–</span><span class="hero-stat-label">DZ</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statYearAvions">–</span><span class="hero-stat-label">Avions différents</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statYearTopAvion">–</span><span class="hero-stat-label">Avion préféré</span></div>
+          </div>
+        </div>
+        <div class="hero-stat-group">
+          <span class="hero-group-label">Global</span>
+          <div class="hero-stats">
+            <div class="hero-stat"><span class="hero-stat-value" id="statGlobalDZ">–</span><span class="hero-stat-label">DZ</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statGlobalVoile">–</span><span class="hero-stat-label">Sauts voile actuelle</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statGlobalSac">–</span><span class="hero-stat-label">Sauts sac actuel</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statGlobalTopDZ">–</span><span class="hero-stat-label">DZ préférée</span></div>
+            <div class="hero-stat"><span class="hero-stat-value" id="statGlobalTopAvion">–</span><span class="hero-stat-label">Avion préféré</span></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -199,16 +215,41 @@ function renderTable(sorted){
   });
 }
 
+function mostUsed(list, field){
+  const counts = {};
+  list.forEach(j=>{
+    const v = (j[field] || '').trim();
+    if(!v) return;
+    counts[v] = (counts[v] || 0) + 1;
+  });
+  let best = null, bestCount = 0;
+  Object.entries(counts).forEach(([k,c])=>{ if(c > bestCount){ best = k; bestCount = c; } });
+  return best;
+}
+
 function renderStats(sorted){
   document.getElementById('heroTotal').textContent = sorted.length;
   const thisYear = sorted.filter(j=>j.date.startsWith(String(currentYear)));
-  document.getElementById('statYear').textContent = thisYear.length;
-  document.getElementById('statDZ').textContent = new Set(sorted.map(j=>j.lieu).filter(Boolean)).size;
-  const altKm = sorted.reduce((s,j)=>s+(j.altitude_m||0),0)/1000;
-  document.getElementById('statAlt').textContent = altKm.toFixed(1)+' km';
+
   const thisMonthKey = String(currentYear)+'-'+String(new Date().getMonth()+1).padStart(2,'0');
   const thisMonthCount = sorted.filter(j=>j.date.startsWith(thisMonthKey)).length;
   document.getElementById('heroDelta').textContent = thisMonthCount ? `+${thisMonthCount} ce mois-ci` : '';
+
+  // --- Cette année ---
+  document.getElementById('statYearJumps').textContent = thisYear.length;
+  document.getElementById('statYearDZ').textContent = new Set(thisYear.map(j=>j.lieu).filter(Boolean)).size;
+  document.getElementById('statYearAvions').textContent = new Set(thisYear.map(j=>j.avion).filter(Boolean)).size;
+  document.getElementById('statYearTopAvion').textContent = mostUsed(thisYear, 'avion') || '—';
+
+  // --- Global ---
+  document.getElementById('statGlobalDZ').textContent = new Set(sorted.map(j=>j.lieu).filter(Boolean)).size;
+  const current = sorted[sorted.length-1] || {};
+  document.getElementById('statGlobalVoile').textContent = current.principale
+    ? sorted.filter(j=>j.principale === current.principale).length : '—';
+  document.getElementById('statGlobalSac').textContent = current.parachute
+    ? sorted.filter(j=>j.parachute === current.parachute).length : '—';
+  document.getElementById('statGlobalTopDZ').textContent = mostUsed(sorted, 'lieu') || '—';
+  document.getElementById('statGlobalTopAvion').textContent = mostUsed(sorted, 'avion') || '—';
 
   const byMonth = Array(12).fill(0);
   thisYear.forEach(j=>{ byMonth[Number(j.date.slice(5,7))-1]++; });
