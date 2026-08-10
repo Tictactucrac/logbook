@@ -444,6 +444,11 @@ document.getElementById('importFileInput').addEventListener('change', async (e)=
   const text = await file.text();
   const parsed = parseSchoolCSV(text);
   if(!parsed.length){ showToast('Fichier vide ou format non reconnu'); return; }
+  // Le fichier de l'école liste les sauts du plus récent au plus ancien (partant de ~1500
+  // vers 1). On l'inverse pour retrouver l'ordre chronologique, indispensable pour bien
+  // numéroter les sauts d'une même journée (le n°1 du jour doit être le premier réellement
+  // effectué, pas le dernier).
+  parsed.reverse();
   openImportPreview(computeImportStatus(parsed));
 });
 
