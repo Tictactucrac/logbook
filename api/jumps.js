@@ -78,7 +78,12 @@ module.exports = async function handler(req, res) {
         method: 'DELETE',
         headers,
       });
-      res.status(r.status).json({ ok: r.ok });
+      if (!r.ok) {
+        const errText = await r.text();
+        res.status(r.status).json({ error: errText || `Erreur Supabase (${r.status})` });
+        return;
+      }
+      res.status(200).json({ ok: true });
       return;
     }
 
