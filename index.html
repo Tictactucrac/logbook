@@ -426,7 +426,7 @@ document.getElementById('deleteBtn').addEventListener('click', async ()=>{
     await reload();
     showToast('Saut supprimé');
   }catch(err){
-    showToast('Erreur lors de la suppression');
+    showToast(err.authError ? 'Session expirée — recharge la page' : 'Erreur lors de la suppression : ' + err.message);
   }
 });
 
@@ -441,7 +441,7 @@ document.getElementById('importFileInput').addEventListener('change', async (e)=
   const file = e.target.files[0];
   e.target.value = '';
   if(!file) return;
-  const text = await file.text();
+  const text = await readFileSmart(file);
   const parsed = parseSchoolCSV(text);
   if(!parsed.length){ showToast('Fichier vide ou format non reconnu'); return; }
   // Le fichier de l'école liste les sauts du plus récent au plus ancien (partant de ~1500
