@@ -146,6 +146,7 @@
       <div class="form-grid">
         <div class="field"><label>Date</label><input type="date" id="f-date" required></div>
         <div class="field" id="positionField" style="display:none;"><label>Ordre du jour</label><select id="f-position"></select></div>
+        <div class="field" id="quantityField"><label>Nombre de sauts identiques à créer</label><input type="number" id="f-quantity" min="1" max="30" value="1"></div>
         <div class="field"><label>Lieu</label><input type="text" id="f-lieu" required></div>
         <div class="field"><label>Avion</label><input type="text" id="f-avion" placeholder="F-GPBK"></div>
         <div class="field"><label>Altitude (m)</label><input type="number" step="100" id="f-altitude"></div>
@@ -313,6 +314,8 @@ function openModal(id=null){
   const defaults = j ? {} : lastEquip();
   document.getElementById('modalTitle').textContent = j ? 'Modifier le saut' : 'Ajouter un saut';
   document.getElementById('deleteBtn').style.display = j ? 'inline' : 'none';
+  document.getElementById('quantityField').style.display = j ? 'none' : '';
+  document.getElementById('f-quantity').value = 1;
   const map = { date:'date', lieu:'lieu', avion:'avion', altitude:'altitude_m', travail:'travail', parachute:'parachute', principale:'principale', reserve:'reserve', aad:'aad', notes:'notes' };
   Object.entries(map).forEach(([field,key])=>{
     const el = document.getElementById('f-'+field);
@@ -336,7 +339,14 @@ function updatePreview(){
   const total = others.length + 1;
 
   if(total <= 1 || !sameDateAsBefore){
-    preview.textContent = `→ Ce sera le saut n°${total} de cette journée`;
+    if(!editingId){
+      const qty = Math.max(1, Number(document.getElementById('f-quantity').value) || 1);
+      preview.textContent = qty > 1
+        ? `→ Ce seront les sauts n°${total} à n°${total + qty - 1} de cette journée`
+        : `→ Ce sera le saut n°${total} de cette journée`;
+    } else {
+      preview.textContent = `→ Ce sera le saut n°${total} de cette journée`;
+    }
     posField.style.display = 'none';
     return;
   }
@@ -351,6 +361,7 @@ function updatePreview(){
     .join('');
 }
 document.getElementById('f-date').addEventListener('input', updatePreview);
+document.getElementById('f-quantity').addEventListener('input', updatePreview);
 document.getElementById('modalClose').addEventListener('click', closeModal);
 document.getElementById('cancelBtn').addEventListener('click', closeModal);
 overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
@@ -406,8 +417,15 @@ form.addEventListener('submit', async e=>{
       }
       showToast('Saut modifié');
     } else {
-      await apiFetch({ method:'POST', body:data });
-      showToast('Saut ajouté');
+      const qty = Math.max(1, Math.min(30, Number(document.getElementById('f-quantity').value) || 1));
+      if(qty > 10 && !confirm(`Créer ${qty} sauts identiques d'un coup, tu confirmes ?`)) {
+        saveBtn.disabled = false; saveBtn.textContent = 'Enregistrer';
+        return;
+      }
+      for(let i=0; i<qty; i++){
+        await apiFetch({ method:'POST', body:data });
+      }
+      showToast(qty > 1 ? `${qty} sauts ajoutés` : 'Saut ajouté');
     }
     closeModal();
     await reload();
