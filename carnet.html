@@ -538,7 +538,7 @@ document.getElementById('deleteBtn').addEventListener('click', async ()=>{
     await reload();
     showToast('Saut supprimé');
   }catch(err){
-    showToast('Erreur lors de la suppression');
+    showToast(err.authError ? 'Session expirée — recharge la page' : 'Erreur lors de la suppression : ' + err.message);
   }
 });
 
