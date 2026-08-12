@@ -28,8 +28,25 @@ async function apiFetch(opts = {}){
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   if(res.status === 401){ const e = new Error('auth'); e.authError = true; throw e; }
-  if(!res.ok){ throw new Error('Erreur serveur'); }
+  if(!res.ok){
+    let detail = '';
+    try{ const data = await res.json(); detail = data.error || JSON.stringify(data); }catch(e){ /* corps non-JSON ou vide */ }
+    throw new Error(detail || `Erreur serveur (${res.status})`);
+  }
   return res.json();
+}
+
+// Lit un fichier en devinant le bon encodage : essaie l'UTF-8 strict d'abord (fatal:true
+// déclenche une erreur plutôt que de corrompre silencieusement les caractères invalides),
+// et retombe sur Windows-1252 si ce n'est pas de l'UTF-8 valide — le cas classique des
+// exports Windows/Excel français (accents en un seul octet, ex: écoles, clubs...).
+async function readFileSmart(file){
+  const buffer = await file.arrayBuffer();
+  try{
+    return new TextDecoder('utf-8', { fatal:true }).decode(buffer);
+  }catch(e){
+    return new TextDecoder('windows-1252').decode(buffer);
+  }
 }
 
 function computeGlobalN(list){
