@@ -212,6 +212,7 @@ function loadColumnVisibility(){
 let columnVisibility = loadColumnVisibility();
 function isColVisible(field){
   if(field in columnVisibility) return columnVisibility[field] !== false;
+  if(field === 'video_url') return ACCOUNT === 'marie'; // visible par défaut pour Marie, masquée pour Valentin
   return !DEFAULT_HIDDEN_COLS.includes(field);
 }
 function saveColumnVisibility(){
