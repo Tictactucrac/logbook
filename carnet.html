@@ -114,6 +114,7 @@
         <div class="field"><label>Secours</label><input type="text" id="f-reserve"></div>
         <div class="field"><label>AAD</label><input type="text" id="f-aad"></div>
         <div class="field full"><label>Notes</label><textarea id="f-notes" placeholder="avec…"></textarea></div>
+        <div class="field full"><label>Lien vidéo (YouTube)</label><input type="url" id="f-video" placeholder="https://youtube.com/..."></div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn-delete" id="deleteBtn" style="display:none;">Supprimer ce saut</button>
@@ -150,6 +151,7 @@
           <option value="libe">Libé</option>
           <option value="plieur">Plieur</option>
           <option value="notes">Notes</option>
+          <option value="video_url">Lien vidéo</option>
         </select>
       </div>
       <div class="field"><label>Rechercher</label><input type="text" id="rp-search" placeholder="Safire 2 120"></div>
@@ -194,10 +196,11 @@ const COLS = [
   { field:'libe',       label:'Libé',       cell:j => `<td data-label="Libé">${j.libe || '—'}</td>` },
   { field:'plieur',     label:'Plieur',     cell:j => `<td data-label="Plieur">${j.plieur || '—'}</td>` },
   { field:'notes',      label:'Notes',      cell:j => `<td data-label="Notes" class="col-notes">${j.notes || ''}</td>` },
+  { field:'video_url',  label:'Vidéo',      cell:j => `<td data-label="Vidéo">${j.video_url ? `<a href="${j.video_url}" target="_blank" rel="noopener" class="video-link" title="Voir la vidéo">▶</a>` : ''}</td>` },
 ];
 // Nouvelles colonnes masquées par défaut (pas encore choisies par l'utilisateur) pour ne
 // pas surcharger d'un coup une vue déjà personnalisée. Restent bien sûr cochables.
-const DEFAULT_HIDDEN_COLS = ['parachute','reserve','aad','libe','plieur'];
+const DEFAULT_HIDDEN_COLS = ['parachute','reserve','aad','libe','plieur','video_url'];
 
 // Visibilité des colonnes : préférence d'interface, donc volontairement PARTAGÉE entre
 // comptes (pas de préfixe par compte), contrairement aux données elles-mêmes.
@@ -237,7 +240,7 @@ initColumnsPanel();
 const WIDTHS_KEY = 'logbook_carnet_col_widths';
 const DEFAULT_COL_WIDTH = {
   global_n:56, date:92, lieu:150, avion:90, altitude_m:76, travail:120,
-  principale:140, parachute:140, reserve:120, aad:96, libe:100, plieur:110, notes:260,
+  principale:140, parachute:140, reserve:120, aad:96, libe:100, plieur:110, notes:260, video_url:56,
 };
 function loadColumnWidths(){
   try{ const raw = localStorage.getItem(WIDTHS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
@@ -394,6 +397,7 @@ const EXPORT_FIELDS_SAUTS = [
   { key:'reserve',    label:'Secours',       get:j=>j.reserve },
   { key:'aad',        label:'AAD',           get:j=>j.aad },
   { key:'notes',      label:'Notes',         get:j=>j.notes },
+  { key:'video_url',  label:'Lien vidéo',    get:j=>j.video_url },
   { key:'source',     label:'Source',        get:j=>j.source },
 ];
 document.getElementById('openExport').addEventListener('click', ()=>{
@@ -423,7 +427,7 @@ function openModal(id=null){
   document.getElementById('deleteBtn').style.display = j ? 'inline' : 'none';
   document.getElementById('quantityField').style.display = j ? 'none' : '';
   document.getElementById('f-quantity').value = 1;
-  const map = { date:'date', lieu:'lieu', avion:'avion', altitude:'altitude_m', travail:'travail', parachute:'parachute', principale:'principale', reserve:'reserve', aad:'aad', notes:'notes' };
+  const map = { date:'date', lieu:'lieu', avion:'avion', altitude:'altitude_m', travail:'travail', parachute:'parachute', principale:'principale', reserve:'reserve', aad:'aad', notes:'notes', video:'video_url' };
   Object.entries(map).forEach(([field,key])=>{
     const el = document.getElementById('f-'+field);
     el.value = j ? (j[key] ?? '') : (defaults[key] ?? '');
@@ -490,6 +494,7 @@ form.addEventListener('submit', async e=>{
     reserve: document.getElementById('f-reserve').value,
     aad: document.getElementById('f-aad').value,
     notes: document.getElementById('f-notes').value,
+    video_url: document.getElementById('f-video').value.trim() || null,
   };
   // Réordonnancement explicite : seulement si le sélecteur de position est visible
   // (édition d'un saut, même date, avec d'autres sauts ce jour-là) et que la position
