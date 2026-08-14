@@ -517,20 +517,31 @@ function parseSchoolCSV(text){
   const header = parseCSVLine(lines[0], delimiter).map(h => h.trim());
   const idx = name => header.findIndex(h => h.toLowerCase().startsWith(name.toLowerCase()));
   const cols = {
-    date: idx('Date'), lieu: idx('Lieu'), avion: idx('Avion'), altitude: idx('Altitude'),
+    date: idx('Date'), lieu: idx('Lieu'),
+    immat: idx('Immatriculation'), // certains fichiers (ex: Marie) ont une colonne dédiée à l'immat
+    avion: idx('Avion'), altitude: idx('Altitude'),
     travail: idx('Travail'), libe: idx('Libé'), plieur: idx('Plieur'), parachute: idx('Parachute'),
     principale: idx('Principale'), reserve: idx('Réserve'), aad: idx('AAD'), notes: idx('Notes'),
   };
+  // Si une colonne Immatriculation existe : c'est elle qui donne l'immat, et la colonne
+  // Avion contient alors le type (capturé à part pour alimenter la table avions après import).
+  // Sinon (fichier à une seule colonne, comme celui de l'école pour Valentin) : la colonne
+  // Avion EST directement l'immat, comme avant.
+  const hasImmatCol = cols.immat !== -1;
+
   return lines.slice(1).map(line => {
     const c = parseCSVLine(line, delimiter);
     const raw = (c[cols.date] || '').trim();
     const m = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
     if(!m) return null;
     const [, dd, mm, yyyy] = m;
+    const immat = hasImmatCol ? (c[cols.immat] || '').trim() : (c[cols.avion] || '').trim();
+    const typeAvion = hasImmatCol ? (c[cols.avion] || '').trim() : '';
     return {
       date: `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`,
       lieu: normalizeLieu((c[cols.lieu] || '').trim()),
-      avion: (c[cols.avion] || '').trim(),
+      avion: immat,
+      _type_avion: typeAvion || null, // transitoire : sert seulement après l'import, jamais envoyé aux sauts
       altitude_m: parseInt((c[cols.altitude] || '').replace(/[^0-9]/g,''), 10) || null,
       travail: (c[cols.travail] || '').trim(),
       libe: (c[cols.libe] || '').trim(),
@@ -589,10 +600,26 @@ document.getElementById('importConfirm').addEventListener('click', async ()=>{
   const btn = document.getElementById('importConfirm');
   btn.disabled = true; btn.textContent = 'Import en cours…';
   try{
-    const data = await apiFetch({ endpoint:'/api/import', method:'POST', body:{ rows: pendingImportRows } });
+    // couples immat -> type trouvés dans le fichier (uniquement les fichiers avec colonne
+    // Immatriculation séparée en fournissent, ex: celui de Marie), avant de les retirer
+    // des lignes envoyées à /api/import (les sauts n'ont pas de colonne _type_avion).
+    const typesToUpsert = {};
+    pendingImportRows.forEach(r=>{
+      if(r.avion && r._type_avion) typesToUpsert[r.avion] = r._type_avion;
+    });
+    const rowsToSend = pendingImportRows.map(({_type_avion, ...rest}) => rest);
+
+    const data = await apiFetch({ endpoint:'/api/import', method:'POST', body:{ rows: rowsToSend } });
+
+    const typeEntries = Object.entries(typesToUpsert);
+    for(const [immat, type_avion] of typeEntries){
+      try{ await apiFetch({ endpoint:'/api/avions', method:'POST', body:{ immat, type_avion } }); }
+      catch(e){ /* pas bloquant : au pire le type reste à compléter à la main sur la page Avions */ }
+    }
+
     closeImportModal();
     await reload();
-    showToast(`${data.inserted} saut(s) importé(s)`);
+    showToast(`${data.inserted} saut(s) importé(s)` + (typeEntries.length ? `, ${typeEntries.length} type(s) d'avion mis à jour` : ''));
   }catch(err){
     showToast(err.authError ? 'Session expirée — recharge la page' : "Erreur pendant l'import");
   }finally{
