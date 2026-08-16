@@ -123,11 +123,20 @@
       <div class="customize-panel" id="customizePanel">
         <label><input type="checkbox" data-widget="w-month" checked> Sauts par mois</label>
         <label><input type="checkbox" data-widget="w-type" checked> Répartition par type</label>
+        <label><input type="checkbox" data-widget="w-year" checked> Sauts par an</label>
         <label><input type="checkbox" data-widget="w-cumul" checked> Progression cumulée</label>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;">
+        <span style="font-size:11.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:.06em; font-weight:600;">Détail des histogrammes par</span>
+        <div class="view-toggle">
+          <button class="view-toggle-btn active" id="stackByDZBtn">DZ</button>
+          <button class="view-toggle-btn" id="stackByTravailBtn">Travail</button>
+        </div>
       </div>
       <div class="stats-widgets">
         <div class="widget" id="w-month"><div class="widget-title">Sauts par mois (année en cours)</div><canvas id="chartMonth"></canvas></div>
         <div class="widget" id="w-type"><div class="widget-title">Répartition par type de travail</div><canvas id="chartType"></canvas></div>
+        <div class="widget" id="w-year"><div class="widget-title">Sauts par an</div><canvas id="chartYear"></canvas></div>
         <div class="widget" id="w-cumul"><div class="widget-title">Progression cumulée (depuis le début)</div><canvas id="chartCumul"></canvas></div>
       </div>
     </section>
@@ -217,6 +226,67 @@ function renderTable(sorted){
   });
 }
 
+const CHART_PALETTE = ['#ff9b42','#5fc8e3','#6ee7a8','#b79cff','#ffb877','#8fd8ec','#96edbf','#c9b6ff','#e8894f','#4fb3cf'];
+let stackField = 'lieu'; // 'lieu' (DZ) ou 'travail', pilote la couleur des histogrammes empilés
+
+// Construit un jeu de datasets Chart.js empilés : les catégories les plus fréquentes de
+// categoryField (lieu ou travail) en couleurs distinctes, le reste regroupé dans "Autres".
+function buildStackedDatasets(jumpsSubset, bucketLabels, bucketIndexFn, categoryField, maxCategories){
+  const categoryCounts = {};
+  jumpsSubset.forEach(j=>{
+    const cat = (j[categoryField] || '').trim() || 'Non renseigné';
+    categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+  });
+  const sortedCats = Object.entries(categoryCounts).sort((a,b)=> b[1]-a[1]);
+  const top = sortedCats.slice(0, maxCategories).map(e=>e[0]);
+  const hasOthers = sortedCats.length > top.length;
+
+  const datasets = top.map((cat, i) => {
+    const values = bucketLabels.map(()=>0);
+    jumpsSubset.forEach(j=>{
+      const jCat = (j[categoryField] || '').trim() || 'Non renseigné';
+      if(jCat !== cat) return;
+      const idx = bucketIndexFn(j);
+      if(idx != null && idx >= 0) values[idx]++;
+    });
+    return { label:cat, data:values, backgroundColor: CHART_PALETTE[i % CHART_PALETTE.length], maxBarThickness:28 };
+  });
+
+  if(hasOthers){
+    const values = bucketLabels.map(()=>0);
+    jumpsSubset.forEach(j=>{
+      const jCat = (j[categoryField] || '').trim() || 'Non renseigné';
+      if(top.includes(jCat)) return;
+      const idx = bucketIndexFn(j);
+      if(idx != null && idx >= 0) values[idx]++;
+    });
+    datasets.push({ label:'Autres', data:values, backgroundColor:'#5a6275', maxBarThickness:28 });
+  }
+  return datasets;
+}
+
+// Cumul mois par mois (pas saut par saut) : sinon la courbe est toujours une diagonale
+// parfaite puisque x et y avancent au même rythme quel que soit l'espacement réel dans
+// le temps. Un point par mois, avec le total cumulé à la fin de ce mois.
+function buildCumulativeByMonth(sorted){
+  if(!sorted.length) return { labels:[], data:[] };
+  const first = new Date(sorted[0].date);
+  const now = new Date();
+  const labels = [];
+  const data = [];
+  let cursor = new Date(first.getFullYear(), first.getMonth(), 1);
+  let idx = 0;
+  while(cursor <= now){
+    const monthEnd = new Date(cursor.getFullYear(), cursor.getMonth()+1, 0);
+    const monthEndStr = monthEnd.toISOString().slice(0,10);
+    while(idx < sorted.length && sorted[idx].date <= monthEndStr){ idx++; }
+    labels.push(`${monthsFR[cursor.getMonth()]} ${cursor.getFullYear()}`);
+    data.push(idx);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1);
+  }
+  return { labels, data };
+}
+
 function mostUsed(list, field){
   const counts = {};
   list.forEach(j=>{
@@ -253,35 +323,43 @@ function renderStats(sorted){
   document.getElementById('statGlobalTopDZ').textContent = mostUsed(sorted, 'lieu') || '—';
   document.getElementById('statGlobalTopAvion').textContent = mostUsed(sorted, 'avion') || '—';
 
-  const byMonth = Array(12).fill(0);
-  thisYear.forEach(j=>{ byMonth[Number(j.date.slice(5,7))-1]++; });
+  // --- Graphiques ---
+  const byMonthDatasets = buildStackedDatasets(thisYear, monthsFR, j => Number(j.date.slice(5,7))-1, stackField, 6);
 
   const byType = {};
   sorted.forEach(j=>{ const k = j.travail || 'Autre'; byType[k] = (byType[k]||0)+1; });
-  const palette = ['#ff9b42','#5fc8e3','#6ee7a8','#b79cff','#ffb877','#8fd8ec','#96edbf','#c9b6ff','#e8894f','#4fb3cf'];
 
-  const cumulLabels = sorted.map(j=>fmtDate(j.date));
-  const cumulData = sorted.map((_,i)=>i+1);
+  const years = Array.from(new Set(sorted.map(j=>j.date.slice(0,4)))).sort();
+  const byYearDatasets = buildStackedDatasets(sorted, years, j => years.indexOf(j.date.slice(0,4)), stackField, 6);
+
+  const cumul = buildCumulativeByMonth(sorted);
 
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary');
   Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
   const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim();
   Object.values(charts).forEach(c=>c.destroy());
 
+  const stackedLegend = { display:true, position:'bottom', labels:{ boxWidth:9, font:{size:10} } };
+
   charts.month = new Chart(document.getElementById('chartMonth'), {
     type:'bar',
-    data:{ labels:monthsFR, datasets:[{ data:byMonth, backgroundColor:'#ff9b42', borderRadius:4, maxBarThickness:22 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{precision:0}, grid:{color:gridColor}} } }
+    data:{ labels:monthsFR, datasets: byMonthDatasets },
+    options:{ plugins:{ legend:stackedLegend }, scales:{ x:{ stacked:true, grid:{display:false} }, y:{ stacked:true, beginAtZero:true, ticks:{precision:0}, grid:{color:gridColor} } } }
   });
   charts.type = new Chart(document.getElementById('chartType'), {
     type:'doughnut',
-    data:{ labels:Object.keys(byType), datasets:[{ data:Object.values(byType), backgroundColor:palette, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }]},
+    data:{ labels:Object.keys(byType), datasets:[{ data:Object.values(byType), backgroundColor:CHART_PALETTE, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }]},
     options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, cutout:'62%' }
+  });
+  charts.year = new Chart(document.getElementById('chartYear'), {
+    type:'bar',
+    data:{ labels:years, datasets: byYearDatasets },
+    options:{ plugins:{ legend:stackedLegend }, scales:{ x:{ stacked:true, grid:{display:false} }, y:{ stacked:true, beginAtZero:true, ticks:{precision:0}, grid:{color:gridColor} } } }
   });
   charts.cumul = new Chart(document.getElementById('chartCumul'), {
     type:'line',
-    data:{ labels:cumulLabels, datasets:[{ data:cumulData, borderColor:'#5fc8e3', backgroundColor:'rgba(95,200,227,0.12)', fill:true, tension:0.25, pointRadius:0, borderWidth:2 }]},
-    options:{ plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{beginAtZero:true, grid:{color:gridColor}} } }
+    data:{ labels:cumul.labels, datasets:[{ data:cumul.data, borderColor:'#5fc8e3', backgroundColor:'rgba(95,200,227,0.12)', fill:true, tension:0.25, pointRadius:0, borderWidth:2 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{ display:true, grid:{display:false}, ticks:{maxTicksLimit:10, font:{size:9.5}} }, y:{beginAtZero:true, grid:{color:gridColor}} } }
   });
 }
 
@@ -297,6 +375,19 @@ async function reload(){
 }
 
 initAuth((data)=>{ jumps = data; refresh(); });
+
+document.getElementById('stackByDZBtn').addEventListener('click', ()=>{
+  stackField = 'lieu';
+  document.getElementById('stackByDZBtn').classList.add('active');
+  document.getElementById('stackByTravailBtn').classList.remove('active');
+  refresh();
+});
+document.getElementById('stackByTravailBtn').addEventListener('click', ()=>{
+  stackField = 'travail';
+  document.getElementById('stackByTravailBtn').classList.add('active');
+  document.getElementById('stackByDZBtn').classList.remove('active');
+  refresh();
+});
 
 // ---------- Modal ajout/édition ----------
 const overlay = document.getElementById('overlay');
