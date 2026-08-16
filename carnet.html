@@ -63,33 +63,64 @@
       <div class="panel-head">
         <span class="panel-title">Carnet complet</span>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <div class="view-toggle">
+            <button class="view-toggle-btn active" id="viewTableBtn">Tableau</button>
+            <button class="view-toggle-btn" id="viewCalendarBtn">Calendrier</button>
+          </div>
           <button class="customize-btn" id="columnsBtn">⚙ Colonnes</button>
           <button class="btn btn-ghost" id="openReplace" style="padding:8px 14px; font-size:12.5px;">🔍 Rechercher/remplacer</button>
           <button class="btn btn-ghost" id="openExport" style="padding:8px 14px; font-size:12.5px;">⇩ Exporter</button>
           <button class="btn btn-primary" id="openAddManual" style="padding:8px 14px; font-size:12.5px;">+ Ajouter un saut</button>
         </div>
       </div>
-      <div class="customize-panel" id="columnsPanel"></div>
 
-      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
-        <div class="field" style="flex:1; min-width:220px;">
-          <label>Recherche</label>
-          <input type="text" id="searchInput" placeholder="Lieu, avion, travail, matériel, notes…">
+      <div id="tableView">
+        <div class="customize-panel" id="columnsPanel"></div>
+
+        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
+          <div class="field" style="flex:1; min-width:220px;">
+            <label>Recherche</label>
+            <input type="text" id="searchInput" placeholder="Lieu, avion, travail, matériel, notes…">
+          </div>
+          <div class="field" style="width:150px;">
+            <label>Année</label>
+            <select id="yearFilter"><option value="">Toutes</option></select>
+          </div>
         </div>
-        <div class="field" style="width:150px;">
-          <label>Année</label>
-          <select id="yearFilter"><option value="">Toutes</option></select>
-        </div>
+        <p id="resultCount" style="color:var(--text-secondary); font-size:12.5px; margin:0 0 14px;"></p>
+
+        <table class="resizable-table">
+          <colgroup id="carnetColgroup"></colgroup>
+          <thead><tr id="carnetHeadRow"></tr></thead>
+          <tbody id="carnetBody"></tbody>
+        </table>
       </div>
-      <p id="resultCount" style="color:var(--text-secondary); font-size:12.5px; margin:0 0 14px;"></p>
 
-      <table class="resizable-table">
-        <colgroup id="carnetColgroup"></colgroup>
-        <thead><tr id="carnetHeadRow"></tr></thead>
-        <tbody id="carnetBody"></tbody>
-      </table>
+      <div id="calendarView" style="display:none;">
+        <div class="calendar-nav">
+          <button class="nav-arrow" id="calPrevBtn" aria-label="Mois précédent">‹</button>
+          <span class="calendar-month-label" id="calMonthLabel">—</span>
+          <button class="nav-arrow" id="calNextBtn" aria-label="Mois suivant">›</button>
+          <button class="btn btn-ghost" id="calTodayBtn" style="padding:7px 14px; font-size:12.5px;">Aujourd'hui</button>
+        </div>
+        <div class="calendar-grid" id="calendarGrid"></div>
+      </div>
     </section>
   </main>
+</div>
+
+<!-- Modal détail d'un jour (vue calendrier) -->
+<div class="overlay" id="dayDetailOverlay">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <span class="modal-title" id="dayDetailTitle">Sauts du</span>
+      <button class="modal-close" id="dayDetailClose">×</button>
+    </div>
+    <div id="dayDetailList" style="max-height:340px; overflow-y:auto;"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="dayDetailCloseBtn" style="margin-left:auto;">Fermer</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal ajout/édition (identique à index.html) -->
@@ -376,12 +407,107 @@ function refresh(){
 async function reload(){
   jumps = await apiFetch();
   refresh();
+  if(carnetViewMode === 'calendar') renderCalendar();
 }
 
-initAuth((data)=>{ jumps = data; refresh(); });
+initAuth((data)=>{
+  jumps = data;
+  refresh();
+  switchView(localStorage.getItem('logbook_carnet_view') || 'table');
+});
 
 document.getElementById('searchInput').addEventListener('input', refresh);
 document.getElementById('yearFilter').addEventListener('change', refresh);
+
+// ---------- Vue Calendrier ----------
+let carnetViewMode = 'table';
+let calCurrentMonth = new Date();
+const MONTHS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+function switchView(view){
+  carnetViewMode = view;
+  document.getElementById('tableView').style.display = view === 'table' ? '' : 'none';
+  document.getElementById('calendarView').style.display = view === 'calendar' ? '' : 'none';
+  document.getElementById('viewTableBtn').classList.toggle('active', view === 'table');
+  document.getElementById('viewCalendarBtn').classList.toggle('active', view === 'calendar');
+  localStorage.setItem('logbook_carnet_view', view);
+  if(view === 'calendar') renderCalendar();
+}
+document.getElementById('viewTableBtn').addEventListener('click', ()=> switchView('table'));
+document.getElementById('viewCalendarBtn').addEventListener('click', ()=> switchView('calendar'));
+
+function renderCalendar(){
+  const year = calCurrentMonth.getFullYear();
+  const month = calCurrentMonth.getMonth();
+  document.getElementById('calMonthLabel').textContent = `${MONTHS_FULL[month]} ${year}`;
+
+  const byDate = {};
+  jumps.forEach(j=>{ (byDate[j.date] = byDate[j.date] || []).push(j); });
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = (firstOfMonth.getDay() + 6) % 7; // lundi = 0
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  let html = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<div class="calendar-dow">${d}</div>`).join('');
+  for(let i=0; i<startWeekday; i++) html += `<div class="calendar-day empty"></div>`;
+
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayJumps = byDate[dateStr] || [];
+    const isToday = dateStr === todayStr;
+    const hasJumps = dayJumps.length > 0;
+    html += `
+      <div class="calendar-day ${isToday?'today':''} ${hasJumps?'has-jumps':''}" ${hasJumps?`data-date="${dateStr}"`:''}>
+        <span class="calendar-day-num">${day}</span>
+        ${hasJumps ? `<span class="calendar-day-count">${dayJumps.length}</span>` : ''}
+      </div>`;
+  }
+
+  const grid = document.getElementById('calendarGrid');
+  grid.innerHTML = html;
+  grid.querySelectorAll('[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=> openDayDetail(cell.dataset.date));
+  });
+}
+
+document.getElementById('calPrevBtn').addEventListener('click', ()=>{
+  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()-1, 1);
+  renderCalendar();
+});
+document.getElementById('calNextBtn').addEventListener('click', ()=>{
+  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()+1, 1);
+  renderCalendar();
+});
+document.getElementById('calTodayBtn').addEventListener('click', ()=>{
+  calCurrentMonth = new Date();
+  renderCalendar();
+});
+
+function openDayDetail(dateStr){
+  const dayJumps = jumps.filter(j=>j.date===dateStr).sort((a,b)=>a.day_index-b.day_index);
+  document.getElementById('dayDetailTitle').textContent = fmtDate(dateStr);
+  document.getElementById('dayDetailList').innerHTML = dayJumps.map(j => `
+    <div class="import-row">
+      <span class="im-date">n°${j.day_index}</span>
+      <span class="im-info">${j.lieu || '—'} · ${j.travail || '—'}</span>
+      <button class="row-edit" data-edit="${j.id}" aria-label="Modifier">✎</button>
+    </div>
+  `).join('');
+  document.getElementById('dayDetailList').querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      closeDayDetail();
+      openModal(Number(btn.dataset.edit));
+    });
+  });
+  document.getElementById('dayDetailOverlay').classList.add('open');
+}
+function closeDayDetail(){ document.getElementById('dayDetailOverlay').classList.remove('open'); }
+document.getElementById('dayDetailClose').addEventListener('click', closeDayDetail);
+document.getElementById('dayDetailCloseBtn').addEventListener('click', closeDayDetail);
+document.getElementById('dayDetailOverlay').addEventListener('click', e=>{
+  if(e.target.id === 'dayDetailOverlay') closeDayDetail();
+});
 
 // ---------- Export CSV (respecte la recherche/l'année actuellement affichées) ----------
 const EXPORT_FIELDS_SAUTS = [
