@@ -10,6 +10,11 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script src="/shared/app.js"></script>
 <link rel="stylesheet" href="/shared/style.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#ff9b42">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
 
@@ -104,6 +109,7 @@
           <button class="btn btn-ghost" id="calTodayBtn" style="padding:7px 14px; font-size:12.5px;">Aujourd'hui</button>
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="calendar-legend" id="calendarLegend"></div>
       </div>
     </section>
   </main>
@@ -205,6 +211,8 @@
     </div>
   </div>
 </div>
+
+<div class="calendar-tooltip" id="calendarTooltip"></div>
 
 <div class="toast" id="toast"></div>
 
@@ -423,6 +431,28 @@ document.getElementById('yearFilter').addEventListener('change', refresh);
 let carnetViewMode = 'table';
 let calCurrentMonth = new Date();
 const MONTHS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const CAL_PALETTE = ['#ff9b42','#5fc8e3','#6ee7a8','#b79cff','#ffb877','#8fd8ec','#96edbf','#c9b6ff','#e8894f','#4fb3cf'];
+let dzColorMap = {};
+
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Une couleur par DZ, stable dans le temps (basée sur la fréquence sur tout l'historique,
+// pas juste le mois affiché) pour que la même DZ garde toujours la même couleur en naviguant.
+function buildDZColorMap(){
+  const counts = {};
+  jumps.forEach(j=>{
+    const dz = (j.lieu || '').trim() || 'Non renseigné';
+    counts[dz] = (counts[dz] || 0) + 1;
+  });
+  const sortedDZ = Object.entries(counts).sort((a,b)=> b[1]-a[1]).map(e=>e[0]);
+  const map = {};
+  sortedDZ.forEach((dz,i)=>{ map[dz] = CAL_PALETTE[i % CAL_PALETTE.length]; });
+  return map;
+}
 
 function switchView(view){
   carnetViewMode = view;
@@ -437,6 +467,9 @@ document.getElementById('viewTableBtn').addEventListener('click', ()=> switchVie
 document.getElementById('viewCalendarBtn').addEventListener('click', ()=> switchView('calendar'));
 
 function renderCalendar(){
+  hideTooltip();
+  dzColorMap = buildDZColorMap();
+
   const year = calCurrentMonth.getFullYear();
   const month = calCurrentMonth.getMonth();
   document.getElementById('calMonthLabel').textContent = `${MONTHS_FULL[month]} ${year}`;
@@ -448,19 +481,31 @@ function renderCalendar(){
   const startWeekday = (firstOfMonth.getDay() + 6) % 7; // lundi = 0
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const todayStr = new Date().toISOString().slice(0,10);
+  const dzSeenThisMonth = new Set();
 
   let html = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=>`<div class="calendar-dow">${d}</div>`).join('');
   for(let i=0; i<startWeekday; i++) html += `<div class="calendar-day empty"></div>`;
 
   for(let day=1; day<=daysInMonth; day++){
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const dayJumps = byDate[dateStr] || [];
+    const dayJumps = (byDate[dateStr] || []).slice().sort((a,b)=>a.day_index-b.day_index);
     const isToday = dateStr === todayStr;
     const hasJumps = dayJumps.length > 0;
+
+    let cellStyle = '';
+    let numStyle = '';
+    if(hasJumps){
+      const dz = (dayJumps[0].lieu || '').trim() || 'Non renseigné';
+      const color = dzColorMap[dz] || '#5a6275';
+      dzSeenThisMonth.add(dz);
+      cellStyle = `background:${hexToRgba(color,0.22)}; border-color:${color};`;
+      numStyle = `color:${color}; font-weight:600;`;
+    }
+
     html += `
-      <div class="calendar-day ${isToday?'today':''} ${hasJumps?'has-jumps':''}" ${hasJumps?`data-date="${dateStr}"`:''}>
-        <span class="calendar-day-num">${day}</span>
-        ${hasJumps ? `<span class="calendar-day-count">${dayJumps.length}</span>` : ''}
+      <div class="calendar-day ${isToday?'today':''} ${hasJumps?'has-jumps':''}" ${hasJumps?`data-date="${dateStr}" style="${cellStyle}"`:''}>
+        <span class="calendar-day-num" style="${numStyle}">${day}</span>
+        ${hasJumps ? `<span class="calendar-day-count" style="color:${dzColorMap[(dayJumps[0].lieu||'').trim()||'Non renseigné']||'inherit'}">${dayJumps.length}</span>` : ''}
       </div>`;
   }
 
@@ -468,8 +513,38 @@ function renderCalendar(){
   grid.innerHTML = html;
   grid.querySelectorAll('[data-date]').forEach(cell=>{
     cell.addEventListener('click', ()=> openDayDetail(cell.dataset.date));
+    cell.addEventListener('mouseenter', e=> showCalendarTooltip(e, cell.dataset.date));
+    cell.addEventListener('mousemove', positionCalendarTooltip);
+    cell.addEventListener('mouseleave', hideTooltip);
   });
+
+  const legend = document.getElementById('calendarLegend');
+  const legendDZs = Array.from(dzSeenThisMonth).sort((a,b)=> CAL_PALETTE.indexOf(dzColorMap[a]) - CAL_PALETTE.indexOf(dzColorMap[b]));
+  legend.innerHTML = legendDZs.map(dz => `
+    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:${dzColorMap[dz]||'#5a6275'}"></span>${dz}</span>
+  `).join('');
 }
+
+// ---------- Infobulle au survol (aperçu sans avoir à cliquer) ----------
+const calendarTooltip = document.getElementById('calendarTooltip');
+function showCalendarTooltip(e, dateStr){
+  const dayJumps = jumps.filter(j=>j.date===dateStr).sort((a,b)=>a.day_index-b.day_index);
+  calendarTooltip.innerHTML = `<strong>${fmtDate(dateStr)}</strong>` + dayJumps.map(j =>
+    `<div class="tt-row">n°${j.day_index} — ${j.lieu || '—'} — ${j.travail || '—'}</div>`
+  ).join('');
+  positionCalendarTooltip(e);
+  calendarTooltip.style.display = 'block';
+}
+function positionCalendarTooltip(e){
+  const pad = 14;
+  let x = e.clientX + pad;
+  let y = e.clientY + pad;
+  if(x > window.innerWidth - 260) x = e.clientX - 260 - pad;
+  if(y > window.innerHeight - 160) y = e.clientY - 160 - pad;
+  calendarTooltip.style.left = x + 'px';
+  calendarTooltip.style.top = y + 'px';
+}
+function hideTooltip(){ calendarTooltip.style.display = 'none'; }
 
 document.getElementById('calPrevBtn').addEventListener('click', ()=>{
   calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()-1, 1);
