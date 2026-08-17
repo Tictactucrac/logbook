@@ -254,10 +254,35 @@ function initThemeSwitch(){
   });
 }
 
+// Bandeau discret affiché quand le navigateur détecte une perte de réseau : les données
+// visibles sont les dernières chargées avec succès (via le cache du service worker),
+// mais rien de nouveau ne peut être enregistré tant que le réseau n'est pas revenu.
+function initOfflineBanner(){
+  const banner = document.createElement('div');
+  banner.id = 'offlineBanner';
+  banner.className = 'offline-banner';
+  banner.textContent = '⚠ Hors ligne — tu vois les dernières données chargées, les modifications ne seront pas enregistrées';
+  banner.style.display = 'none';
+  document.body.prepend(banner);
+  function update(){ banner.style.display = navigator.onLine ? 'none' : 'block'; }
+  window.addEventListener('online', update);
+  window.addEventListener('offline', update);
+  update();
+}
+
 document.addEventListener('DOMContentLoaded', ()=>{
   document.querySelectorAll('[data-soon]').forEach(t=>{
     t.addEventListener('click', ()=> showToast('Bientôt disponible'));
   });
   initAccountSwitcher();
   initThemeSwitch();
+  initOfflineBanner();
 });
+
+// Enregistre le service worker (cache des pages + dernières données API par compte,
+// pour pouvoir consulter le carnet même sans réseau — en lecture seule).
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{ /* pas bloquant si ça échoue */ });
+  });
+}
