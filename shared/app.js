@@ -236,12 +236,12 @@ function initThemeSwitch(){
   wrap.className = 'theme-switch-wrap';
   wrap.title = 'Changer de thème';
   wrap.innerHTML = `
-    <span class="theme-icon">☀</span>
+    <span class="theme-icon">🌙</span>
     <label class="theme-toggle">
       <input type="checkbox" id="themeToggleInput">
       <span class="theme-toggle-track"><span class="theme-toggle-thumb"></span></span>
     </label>
-    <span class="theme-icon">🌙</span>
+    <span class="theme-icon">☀</span>
   `;
   topbar.appendChild(wrap);
 
