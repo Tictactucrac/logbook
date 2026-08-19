@@ -228,9 +228,23 @@ function initAccountSwitcher(){
 
 // Injecte le switch clair/sombre dans le topbar (visible sur toutes les pages,
 // même quand les onglets sont cachés en mobile) et le relie au thème mémorisé.
+// Conteneur partagé à droite du topbar (switch de thème + bouton menu mobile),
+// pour qu'ils restent groupés ensemble plutôt que dispersés par le space-between.
+function getTopbarRight(){
+  let right = document.querySelector('.topbar-right');
+  if(!right){
+    const topbar = document.querySelector('.topbar');
+    if(!topbar) return null;
+    right = document.createElement('div');
+    right.className = 'topbar-right';
+    topbar.appendChild(right);
+  }
+  return right;
+}
+
 function initThemeSwitch(){
-  const topbar = document.querySelector('.topbar');
-  if(!topbar) return;
+  const right = getTopbarRight();
+  if(!right) return;
 
   const wrap = document.createElement('div');
   wrap.className = 'theme-switch-wrap';
@@ -243,7 +257,7 @@ function initThemeSwitch(){
     </label>
     <span class="theme-icon">☀</span>
   `;
-  topbar.appendChild(wrap);
+  right.appendChild(wrap);
 
   const input = wrap.querySelector('#themeToggleInput');
   input.checked = document.documentElement.getAttribute('data-theme') === 'light';
@@ -251,6 +265,34 @@ function initThemeSwitch(){
     const theme = input.checked ? 'light' : 'dark';
     localStorage.setItem(THEME_KEY, theme);
     document.documentElement.setAttribute('data-theme', theme);
+  });
+}
+
+// Menu mobile : sous 720px, les onglets (.tabs, déjà présents dans chaque page) passent
+// en menu déroulant plutôt que d'être simplement cachés — un bouton ☰ les affiche/masque.
+// Réutilise le HTML des onglets déjà existant, pas besoin de dupliquer les liens en JS.
+function initMobileNav(){
+  const tabs = document.querySelector('.tabs');
+  const right = getTopbarRight();
+  if(!tabs || !right) return;
+
+  const toggle = document.createElement('button');
+  toggle.className = 'nav-toggle';
+  toggle.setAttribute('aria-label', 'Ouvrir le menu de navigation');
+  toggle.textContent = '☰';
+  right.prepend(toggle);
+
+  toggle.addEventListener('click', e=>{
+    e.stopPropagation();
+    tabs.classList.toggle('mobile-open');
+  });
+  document.addEventListener('click', e=>{
+    if(tabs.classList.contains('mobile-open') && !tabs.contains(e.target) && e.target !== toggle){
+      tabs.classList.remove('mobile-open');
+    }
+  });
+  tabs.querySelectorAll('.tab').forEach(link=>{
+    link.addEventListener('click', ()=> tabs.classList.remove('mobile-open'));
   });
 }
 
@@ -276,6 +318,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   initAccountSwitcher();
   initThemeSwitch();
+  initMobileNav();
   initOfflineBanner();
 });
 
