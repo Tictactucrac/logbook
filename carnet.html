@@ -103,12 +103,17 @@
 
       <div id="calendarView" style="display:none;">
         <div class="calendar-nav">
-          <button class="nav-arrow" id="calPrevBtn" aria-label="Mois précédent">‹</button>
+          <button class="nav-arrow" id="calPrevBtn" aria-label="Précédent">‹</button>
           <span class="calendar-month-label" id="calMonthLabel">—</span>
-          <button class="nav-arrow" id="calNextBtn" aria-label="Mois suivant">›</button>
+          <button class="nav-arrow" id="calNextBtn" aria-label="Suivant">›</button>
           <button class="btn btn-ghost" id="calTodayBtn" style="padding:7px 14px; font-size:12.5px;">Aujourd'hui</button>
+          <div class="view-toggle" style="margin-left:auto;">
+            <button class="view-toggle-btn active" id="calModeMonthBtn">Mois</button>
+            <button class="view-toggle-btn" id="calModeYearBtn">Année</button>
+          </div>
         </div>
         <div class="calendar-grid" id="calendarGrid"></div>
+        <div class="calendar-year-grid" id="calendarYearGrid" style="display:none;"></div>
         <div class="calendar-legend" id="calendarLegend"></div>
       </div>
     </section>
@@ -415,7 +420,7 @@ function refresh(){
 async function reload(){
   jumps = await apiFetch();
   refresh();
-  if(carnetViewMode === 'calendar') renderCalendar();
+  if(carnetViewMode === 'calendar') renderCalendarActive();
 }
 
 initAuth((data)=>{
@@ -430,6 +435,7 @@ document.getElementById('yearFilter').addEventListener('change', refresh);
 // ---------- Vue Calendrier ----------
 let carnetViewMode = 'table';
 let calCurrentMonth = new Date();
+let calMode = 'month'; // 'month' ou 'year'
 const MONTHS_FULL = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const CAL_PALETTE = ['#ff9b42','#5fc8e3','#6ee7a8','#b79cff','#ffb877','#8fd8ec','#96edbf','#c9b6ff','#e8894f','#4fb3cf'];
 let dzColorMap = {};
@@ -461,10 +467,29 @@ function switchView(view){
   document.getElementById('viewTableBtn').classList.toggle('active', view === 'table');
   document.getElementById('viewCalendarBtn').classList.toggle('active', view === 'calendar');
   localStorage.setItem('logbook_carnet_view', view);
-  if(view === 'calendar') renderCalendar();
+  if(view === 'calendar') renderCalendarActive();
 }
 document.getElementById('viewTableBtn').addEventListener('click', ()=> switchView('table'));
 document.getElementById('viewCalendarBtn').addEventListener('click', ()=> switchView('calendar'));
+
+// Bascule entre vue mois et vue année, à l'intérieur du mode Calendrier.
+function renderCalendarActive(){
+  document.getElementById('calendarGrid').style.display = calMode === 'month' ? '' : 'none';
+  document.getElementById('calendarYearGrid').style.display = calMode === 'year' ? '' : 'none';
+  if(calMode === 'month') renderCalendar(); else renderCalendarYear();
+}
+document.getElementById('calModeMonthBtn').addEventListener('click', ()=>{
+  calMode = 'month';
+  document.getElementById('calModeMonthBtn').classList.add('active');
+  document.getElementById('calModeYearBtn').classList.remove('active');
+  renderCalendarActive();
+});
+document.getElementById('calModeYearBtn').addEventListener('click', ()=>{
+  calMode = 'year';
+  document.getElementById('calModeYearBtn').classList.add('active');
+  document.getElementById('calModeMonthBtn').classList.remove('active');
+  renderCalendarActive();
+});
 
 function renderCalendar(){
   hideTooltip();
@@ -525,6 +550,61 @@ function renderCalendar(){
   `).join('');
 }
 
+function renderCalendarYear(){
+  hideTooltip();
+  dzColorMap = buildDZColorMap();
+
+  const year = calCurrentMonth.getFullYear();
+  document.getElementById('calMonthLabel').textContent = `${year}`;
+
+  const byDate = {};
+  jumps.forEach(j=>{ (byDate[j.date] = byDate[j.date] || []).push(j); });
+  const todayStr = new Date().toISOString().slice(0,10);
+  const dzSeenThisYear = new Set();
+
+  let html = '';
+  for(let m=0; m<12; m++){
+    const firstOfMonth = new Date(year, m, 1);
+    const startWeekday = (firstOfMonth.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, m+1, 0).getDate();
+
+    let monthHtml = `<div><div class="mini-month-title">${MONTHS_FULL[m]}</div><div class="mini-month-grid">`;
+    for(let i=0; i<startWeekday; i++) monthHtml += `<div class="mini-day empty"></div>`;
+
+    for(let day=1; day<=daysInMonth; day++){
+      const dateStr = `${year}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      const dayJumps = (byDate[dateStr] || []).slice().sort((a,b)=>a.day_index-b.day_index);
+      const hasJumps = dayJumps.length > 0;
+      const isToday = dateStr === todayStr;
+      let style = '';
+      if(hasJumps){
+        const dz = (dayJumps[0].lieu || '').trim() || 'Non renseigné';
+        const color = dzColorMap[dz] || '#5a6275';
+        dzSeenThisYear.add(dz);
+        style = `background:${color};`;
+      }
+      monthHtml += `<div class="mini-day ${hasJumps?'has-jumps':''} ${isToday?'today':''}" ${hasJumps?`data-date="${dateStr}" style="${style}"`:''}></div>`;
+    }
+    monthHtml += `</div></div>`;
+    html += monthHtml;
+  }
+
+  const grid = document.getElementById('calendarYearGrid');
+  grid.innerHTML = html;
+  grid.querySelectorAll('[data-date]').forEach(cell=>{
+    cell.addEventListener('click', ()=> openDayDetail(cell.dataset.date));
+    cell.addEventListener('mouseenter', e=> showCalendarTooltip(e, cell.dataset.date));
+    cell.addEventListener('mousemove', positionCalendarTooltip);
+    cell.addEventListener('mouseleave', hideTooltip);
+  });
+
+  const legend = document.getElementById('calendarLegend');
+  const legendDZs = Array.from(dzSeenThisYear).sort((a,b)=> CAL_PALETTE.indexOf(dzColorMap[a]) - CAL_PALETTE.indexOf(dzColorMap[b]));
+  legend.innerHTML = legendDZs.map(dz => `
+    <span class="cal-legend-item"><span class="cal-legend-dot" style="background:${dzColorMap[dz]||'#5a6275'}"></span>${dz}</span>
+  `).join('');
+}
+
 // ---------- Infobulle au survol (aperçu sans avoir à cliquer) ----------
 const calendarTooltip = document.getElementById('calendarTooltip');
 function showCalendarTooltip(e, dateStr){
@@ -547,16 +627,20 @@ function positionCalendarTooltip(e){
 function hideTooltip(){ calendarTooltip.style.display = 'none'; }
 
 document.getElementById('calPrevBtn').addEventListener('click', ()=>{
-  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()-1, 1);
-  renderCalendar();
+  calCurrentMonth = calMode === 'month'
+    ? new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()-1, 1)
+    : new Date(calCurrentMonth.getFullYear()-1, calCurrentMonth.getMonth(), 1);
+  renderCalendarActive();
 });
 document.getElementById('calNextBtn').addEventListener('click', ()=>{
-  calCurrentMonth = new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()+1, 1);
-  renderCalendar();
+  calCurrentMonth = calMode === 'month'
+    ? new Date(calCurrentMonth.getFullYear(), calCurrentMonth.getMonth()+1, 1)
+    : new Date(calCurrentMonth.getFullYear()+1, calCurrentMonth.getMonth(), 1);
+  renderCalendarActive();
 });
 document.getElementById('calTodayBtn').addEventListener('click', ()=>{
   calCurrentMonth = new Date();
-  renderCalendar();
+  renderCalendarActive();
 });
 
 function openDayDetail(dateStr){
