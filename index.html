@@ -236,6 +236,29 @@ let stackField = 'lieu'; // 'lieu' (DZ) ou 'travail', pilote la couleur des hist
 
 // Construit un jeu de datasets Chart.js empilés : les catégories les plus fréquentes de
 // categoryField (lieu ou travail) en couleurs distinctes, le reste regroupé dans "Autres".
+// Même principe que buildStackedDatasets, mais pour un graphique à un seul dataset
+// (doughnut) : regroupe au-delà de maxCategories dans "Autres", pour ne jamais dépasser
+// la taille de la palette (sinon deux catégories finissent avec la même couleur).
+function buildTopNGrouped(jumpsSubset, categoryField, maxCategories){
+  const counts = {};
+  jumpsSubset.forEach(j=>{
+    const cat = (j[categoryField] || '').trim() || 'Non renseigné';
+    counts[cat] = (counts[cat] || 0) + 1;
+  });
+  const sortedCats = Object.entries(counts).sort((a,b)=> b[1]-a[1]);
+  const top = sortedCats.slice(0, maxCategories);
+  const rest = sortedCats.slice(maxCategories);
+  const labels = top.map(e=>e[0]);
+  const values = top.map(e=>e[1]);
+  const colors = labels.map((_,i)=> CHART_PALETTE[i % CHART_PALETTE.length]);
+  if(rest.length){
+    labels.push('Autres');
+    values.push(rest.reduce((s,e)=> s+e[1], 0));
+    colors.push('#5a6275');
+  }
+  return { labels, values, colors };
+}
+
 function buildStackedDatasets(jumpsSubset, bucketLabels, bucketIndexFn, categoryField, maxCategories){
   const categoryCounts = {};
   jumpsSubset.forEach(j=>{
@@ -331,8 +354,7 @@ function renderStats(sorted){
   // --- Graphiques ---
   const byMonthDatasets = buildStackedDatasets(thisYear, monthsFR, j => Number(j.date.slice(5,7))-1, stackField, 6);
 
-  const byType = {};
-  sorted.forEach(j=>{ const k = j.travail || 'Autre'; byType[k] = (byType[k]||0)+1; });
+  const typeGrouped = buildTopNGrouped(sorted, 'travail', 9);
 
   const years = Array.from(new Set(sorted.map(j=>j.date.slice(0,4)))).sort();
   const byYearDatasets = buildStackedDatasets(sorted, years, j => years.indexOf(j.date.slice(0,4)), stackField, 6);
@@ -353,7 +375,7 @@ function renderStats(sorted){
   });
   charts.type = new Chart(document.getElementById('chartType'), {
     type:'doughnut',
-    data:{ labels:Object.keys(byType), datasets:[{ data:Object.values(byType), backgroundColor:CHART_PALETTE, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }]},
+    data:{ labels:typeGrouped.labels, datasets:[{ data:typeGrouped.values, backgroundColor:typeGrouped.colors, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--bg-elevated').trim(), borderWidth:2 }]},
     options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, cutout:'62%' }
   });
   charts.year = new Chart(document.getElementById('chartYear'), {
