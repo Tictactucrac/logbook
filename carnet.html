@@ -240,7 +240,12 @@ const COLS = [
   { field:'libe',       label:'Libé',       cell:j => `<td data-label="Libé">${j.libe || '—'}</td>` },
   { field:'plieur',     label:'Plieur',     cell:j => `<td data-label="Plieur">${j.plieur || '—'}</td>` },
   { field:'notes',      label:'Notes',      cell:j => `<td data-label="Notes" class="col-notes">${j.notes || ''}</td>` },
-  { field:'video_url',  label:'Vidéo',      cell:j => `<td data-label="Vidéo">${j.video_url ? `<a href="${j.video_url}" target="_blank" rel="noopener" class="video-link" title="Voir la vidéo">▶</a>` : ''}</td>` },
+  { field:'video_url',  label:'Vidéo',      cell:j => {
+      if(!j.video_url) return `<td data-label="Vidéo"></td>`;
+      const urls = j.video_url.split(/\s+/).filter(Boolean);
+      const links = urls.map((u,i) => `<a href="${u}" target="_blank" rel="noopener" class="video-link" title="Voir la vidéo${urls.length>1?' '+(i+1):''}">▶</a>`).join(' ');
+      return `<td data-label="Vidéo">${links}</td>`;
+    } },
 ];
 // Nouvelles colonnes masquées par défaut (pas encore choisies par l'utilisateur) pour ne
 // pas surcharger d'un coup une vue déjà personnalisée. Restent bien sûr cochables.
