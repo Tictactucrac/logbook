@@ -83,11 +83,10 @@
         <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Voile actuelle : <strong id="curVoile">—</strong></p>
         <div class="form-grid">
           <div class="field"><label>Date de fabrication</label><input type="date" id="f-voile-fab"></div>
-          <div class="field"><label>Sauts sur cette voile avant le suivi</label><input type="number" min="0" id="f-voile-offset" value="0"></div>
+          <div class="field"><label>Sauts sur cette voile avant l'achat</label><input type="number" min="0" id="f-voile-offset" value="0"></div>
           <div class="field"><label>Date du dernier resuspentage</label><input type="date" id="f-voile-resuspentage"></div>
-          <div class="field"><label>Sauts sur le cône avant ce resuspentage</label><input type="number" min="0" id="f-voile-cone-offset" value="0"></div>
         </div>
-        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Dernier resuspentage : <span id="resuspentageAgo">—</span></p>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Sauts sur le cône depuis ce resuspentage (d'après le carnet) : <strong id="coneCountBottom">—</strong></p>
       </section>
 
       <section class="panel" style="margin-bottom:20px;">
@@ -95,7 +94,7 @@
         <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Réserve actuelle : <strong id="curSecours">—</strong></p>
         <div class="form-grid">
           <div class="field"><label>Date de fabrication</label><input type="date" id="f-secours-fab"></div>
-          <div class="field"><label>Sauts avec libé avant le suivi</label><input type="number" min="0" id="f-secours-offset" value="0"></div>
+          <div class="field"><label>Sauts avec libé avant l'achat</label><input type="number" min="0" id="f-secours-offset" value="0"></div>
         </div>
         <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Compté automatiquement sur les sauts où la colonne « Libé » est renseignée.</p>
       </section>
@@ -104,10 +103,14 @@
         <div class="panel-head"><span class="panel-title">AAD</span></div>
         <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">AAD actuel : <strong id="curAad">—</strong></p>
         <div class="form-grid">
-          <div class="field"><label>Date de mise en service</label><input type="date" id="f-aad-service"></div>
-          <div class="field"><label>Date de dernière révision</label><input type="date" id="f-aad-revision"></div>
+          <div class="field"><label>Date de fabrication</label><input type="date" id="f-aad-fab"></div>
+          <div class="field"><label>Dernier changement de batterie</label><input type="date" id="f-aad-batterie"></div>
         </div>
-        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Mise en service : <span id="aadServiceAgo">—</span> · Dernière révision : <span id="aadRevisionAgo">—</span></p>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px; line-height:1.7;">
+          Batterie à remplacer au plus tard le : <span id="aadBatteryDeadline">—</span><br>
+          Fin de vie de l'appareil (limite Vigil, 20 ans) : <span id="aadEndOfLife">—</span>
+        </p>
+        <p style="color:var(--text-tertiary); font-size:11px; margin-top:8px;">Vigil n'impose pas de révision périodique planifiée ; ces échéances sont calculées à partir de la date de fabrication, d'après le site du fabricant (batterie obligatoire entre 8 et 12 ans, fin de vie à 20 ans).</p>
       </section>
 
       <section class="panel" style="margin-bottom:20px;">
@@ -115,8 +118,26 @@
         <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Sac actuel : <strong id="curSac">—</strong></p>
         <div class="form-grid">
           <div class="field"><label>Date de fabrication</label><input type="date" id="f-sac-fab"></div>
-          <div class="field"><label>Sauts sur ce sac avant le suivi</label><input type="number" min="0" id="f-sac-offset" value="0"></div>
+          <div class="field"><label>Sauts sur ce sac avant l'achat</label><input type="number" min="0" id="f-sac-offset" value="0"></div>
         </div>
+
+        <span class="hero-group-label" style="display:block; margin-top:18px;">Hand deploy</span>
+        <div class="form-grid">
+          <div class="field"><label>Date de changement</label><input type="date" id="f-hd-date"></div>
+          <div class="field"><label>Sauts à l'achat</label><input type="number" min="0" id="f-hd-offset" value="0"></div>
+        </div>
+
+        <span class="hero-group-label" style="display:block; margin-top:18px;">POD</span>
+        <div class="form-grid">
+          <div class="field"><label>Date de changement</label><input type="date" id="f-pod-date"></div>
+          <div class="field"><label>Sauts à l'achat</label><input type="number" min="0" id="f-pod-offset" value="0"></div>
+        </div>
+
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:14px; line-height:1.7;">
+          Sauts sur le sac : <strong id="sacCountBottom">—</strong><br>
+          Sauts sur le hand deploy (depuis son changement) : <strong id="hdCountBottom">—</strong><br>
+          Sauts sur le POD (depuis son changement) : <strong id="podCountBottom">—</strong>
+        </p>
       </section>
 
       <section class="panel" style="margin-bottom:20px;">
@@ -124,7 +145,7 @@
         <div class="form-grid">
           <div class="field"><label>Date du dernier repliage</label><input type="date" id="f-repliage"></div>
         </div>
-        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Dernier repliage : <span id="repliageAgo">—</span></p>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Prochain repliage (valable 1 an) : <span id="repliageDeadline">—</span></p>
       </section>
 
       <div style="display:flex; justify-content:flex-end;">
@@ -158,33 +179,47 @@ function countLibe(field, value){
   return jumps.filter(j => (j[field] || '').trim() === value && (j.libe || '').trim() !== '').length;
 }
 
-function daysSince(dateStr){
+// ---------- Échéances (batterie AAD, fin de vie AAD, repliage) ----------
+function addYears(dateStr, years){
   if(!dateStr) return null;
-  return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000);
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setFullYear(d.getFullYear() + years);
+  return d.toISOString().slice(0, 10);
 }
-function fmtDaysSince(dateStr){
-  const d = daysSince(dateStr);
-  if(d == null) return '—';
-  if(d < 0) return 'date future';
-  if(d === 0) return "aujourd'hui";
-  if(d === 1) return 'hier';
-  return `il y a ${d} j`;
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const target = new Date(dateStr + 'T00:00:00').getTime();
+  return Math.ceil((target - Date.now()) / 86400000);
+}
+// Affiche une date + un compte à rebours ("reste N j" / "dépassé de N j"), coloré si
+// proche ou dépassé.
+function renderDeadline(elId, targetDateStr){
+  const el = document.getElementById(elId);
+  if(!targetDateStr){ el.textContent = '—'; el.style.color = ''; return; }
+  const d = daysUntil(targetDateStr);
+  el.textContent = `${fmtDate(targetDateStr)} (${d >= 0 ? `reste ${d} j` : `dépassé de ${Math.abs(d)} j`})`;
+  el.style.color = d < 0 ? 'var(--danger)' : (d < 60 ? 'var(--amber)' : '');
 }
 
 function fillForm(){
   document.getElementById('f-voile-fab').value = profil.voile_date_fabrication || '';
   document.getElementById('f-voile-offset').value = profil.voile_offset_sauts || 0;
   document.getElementById('f-voile-resuspentage').value = profil.voile_date_resuspentage || '';
-  document.getElementById('f-voile-cone-offset').value = profil.voile_cone_offset_sauts || 0;
 
   document.getElementById('f-secours-fab').value = profil.secours_date_fabrication || '';
   document.getElementById('f-secours-offset').value = profil.secours_offset_sauts || 0;
 
-  document.getElementById('f-aad-service').value = profil.aad_date_mise_service || '';
-  document.getElementById('f-aad-revision').value = profil.aad_date_revision || '';
+  document.getElementById('f-aad-fab').value = profil.aad_date_fabrication || '';
+  document.getElementById('f-aad-batterie').value = profil.aad_date_batterie || '';
 
   document.getElementById('f-sac-fab').value = profil.sac_date_fabrication || '';
   document.getElementById('f-sac-offset').value = profil.sac_offset_sauts || 0;
+
+  document.getElementById('f-hd-date').value = profil.hand_deploy_date_changement || '';
+  document.getElementById('f-hd-offset').value = profil.hand_deploy_offset_sauts || 0;
+
+  document.getElementById('f-pod-date').value = profil.pod_date_changement || '';
+  document.getElementById('f-pod-offset').value = profil.pod_offset_sauts || 0;
 
   document.getElementById('f-repliage').value = profil.date_repliage_secours || '';
 }
@@ -205,20 +240,40 @@ function refresh(){
   const voileOffset = Number(document.getElementById('f-voile-offset').value) || 0;
   document.getElementById('statVoileSauts').textContent = voileOffset + countMatching('principale', voileName);
 
-  const coneOffset = Number(document.getElementById('f-voile-cone-offset').value) || 0;
+  // Cône : uniquement les sauts réellement enregistrés depuis le resuspentage, pas de
+  // point de départ manuel (le compteur "avant" ne sert à rien ici).
   const resuspDate = document.getElementById('f-voile-resuspentage').value;
-  document.getElementById('statConeSauts').textContent = coneOffset + countMatching('principale', voileName, resuspDate);
+  const coneCount = countMatching('principale', voileName, resuspDate);
+  document.getElementById('statConeSauts').textContent = coneCount;
+  document.getElementById('coneCountBottom').textContent = coneCount;
 
   const secoursOffset = Number(document.getElementById('f-secours-offset').value) || 0;
   document.getElementById('statSecoursSauts').textContent = secoursOffset + countLibe('reserve', secoursName);
 
   const sacOffset = Number(document.getElementById('f-sac-offset').value) || 0;
-  document.getElementById('statSacSauts').textContent = sacOffset + countMatching('parachute', sacName);
+  const sacCount = sacOffset + countMatching('parachute', sacName);
+  document.getElementById('statSacSauts').textContent = sacCount;
+  document.getElementById('sacCountBottom').textContent = sacCount;
 
-  document.getElementById('aadServiceAgo').textContent  = fmtDaysSince(document.getElementById('f-aad-service').value);
-  document.getElementById('aadRevisionAgo').textContent = fmtDaysSince(document.getElementById('f-aad-revision').value);
-  document.getElementById('repliageAgo').textContent    = fmtDaysSince(document.getElementById('f-repliage').value);
-  document.getElementById('resuspentageAgo').textContent = fmtDaysSince(resuspDate);
+  // Hand deploy et POD sont attachés au sac : comptés sur les sauts avec ce sac,
+  // depuis leur date de changement, + le nombre de sauts qu'ils avaient à l'achat.
+  const hdOffset = Number(document.getElementById('f-hd-offset').value) || 0;
+  const hdDate = document.getElementById('f-hd-date').value;
+  document.getElementById('hdCountBottom').textContent = hdOffset + countMatching('parachute', sacName, hdDate);
+
+  const podOffset = Number(document.getElementById('f-pod-offset').value) || 0;
+  const podDate = document.getElementById('f-pod-date').value;
+  document.getElementById('podCountBottom').textContent = podOffset + countMatching('parachute', sacName, podDate);
+
+  // AAD (Vigil) : pas de révision périodique planifiée, seulement un remplacement de
+  // batterie obligatoire au plus tard 12 ans après fabrication, et une fin de vie à 20 ans.
+  const aadFab = document.getElementById('f-aad-fab').value;
+  renderDeadline('aadBatteryDeadline', addYears(aadFab, 12));
+  renderDeadline('aadEndOfLife', addYears(aadFab, 20));
+
+  // Repliage de secours : valable 1 an.
+  const repliageDate = document.getElementById('f-repliage').value;
+  renderDeadline('repliageDeadline', addYears(repliageDate, 1));
 }
 
 document.getElementById('profilForm').addEventListener('submit', async e => {
@@ -229,13 +284,16 @@ document.getElementById('profilForm').addEventListener('submit', async e => {
     voile_date_fabrication:    document.getElementById('f-voile-fab').value || null,
     voile_offset_sauts:        Number(document.getElementById('f-voile-offset').value) || 0,
     voile_date_resuspentage:   document.getElementById('f-voile-resuspentage').value || null,
-    voile_cone_offset_sauts:   Number(document.getElementById('f-voile-cone-offset').value) || 0,
     secours_date_fabrication:  document.getElementById('f-secours-fab').value || null,
     secours_offset_sauts:      Number(document.getElementById('f-secours-offset').value) || 0,
-    aad_date_mise_service:     document.getElementById('f-aad-service').value || null,
-    aad_date_revision:         document.getElementById('f-aad-revision').value || null,
+    aad_date_fabrication:      document.getElementById('f-aad-fab').value || null,
+    aad_date_batterie:         document.getElementById('f-aad-batterie').value || null,
     sac_date_fabrication:      document.getElementById('f-sac-fab').value || null,
     sac_offset_sauts:          Number(document.getElementById('f-sac-offset').value) || 0,
+    hand_deploy_date_changement: document.getElementById('f-hd-date').value || null,
+    hand_deploy_offset_sauts:    Number(document.getElementById('f-hd-offset').value) || 0,
+    pod_date_changement:         document.getElementById('f-pod-date').value || null,
+    pod_offset_sauts:            Number(document.getElementById('f-pod-offset').value) || 0,
     date_repliage_secours:     document.getElementById('f-repliage').value || null,
   };
   try{
@@ -249,9 +307,9 @@ document.getElementById('profilForm').addEventListener('submit', async e => {
   }
 });
 
-// Recalcule les compteurs en direct dès qu'un champ pertinent (offset, date de
-// resuspentage) change, sans attendre l'enregistrement.
-['f-voile-offset','f-voile-cone-offset','f-voile-resuspentage','f-secours-offset','f-sac-offset','f-aad-service','f-aad-revision','f-repliage']
+// Recalcule les compteurs/échéances en direct dès qu'un champ pertinent change, sans
+// attendre l'enregistrement.
+['f-voile-offset','f-voile-resuspentage','f-secours-offset','f-sac-offset','f-hd-date','f-hd-offset','f-pod-date','f-pod-offset','f-aad-fab','f-repliage']
   .forEach(id => document.getElementById(id).addEventListener('input', refresh));
 
 initAuth(async (data) => {
