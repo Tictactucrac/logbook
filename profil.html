@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carnet de sauts — Profil matériel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="/shared/app.js"></script>
+<link rel="stylesheet" href="/shared/style.css">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#ff9b42">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+
+<!-- ---------- Verrou mot de passe ---------- -->
+<div class="overlay" id="authOverlay">
+  <div class="modal auth-modal">
+    <svg width="34" height="34" viewBox="0 0 34 34" fill="none" style="margin:0 auto;">
+      <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2"/>
+      <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+      <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+      <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <div class="modal-title" style="margin-top:12px;">Carnet de sauts</div>
+    <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Entre le mot de passe pour accéder à tes données.</p>
+    <input type="password" id="authInput" placeholder="Mot de passe" autofocus>
+    <div class="auth-error" id="authError">Mot de passe incorrect.</div>
+    <button class="btn btn-primary" id="authSubmit" style="width:100%; margin-top:14px;">Entrer</button>
+  </div>
+</div>
+
+<div class="app" id="mainContent" style="display:none;">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+        <circle cx="17" cy="17" r="15" stroke="#ff9b42" stroke-width="2" opacity="0.9"/>
+        <circle cx="17" cy="17" r="1.6" fill="#ff9b42"/>
+        <line x1="17" y1="17" x2="17" y2="6" stroke="#ff9b42" stroke-width="2" stroke-linecap="round"/>
+        <line x1="17" y1="17" x2="24" y2="21" stroke="#5fc8e3" stroke-width="1.5" stroke-linecap="round" opacity="0.8"/>
+        <line x1="5" y1="17" x2="8" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+        <line x1="26" y1="17" x2="29" y2="17" stroke="#8d96a8" stroke-width="1.5"/>
+      </svg>
+      <div class="brand-text">
+        <span class="brand-name">VALENTIN</span>
+        <span class="brand-sub">Carnet de sauts</span>
+      </div>
+    </div>
+    <nav class="tabs">
+      <a class="tab" href="index.html">Tableau de bord</a>
+      <a class="tab" href="carnet.html">Carnet</a>
+      <a class="tab" href="avions.html">Avions</a>
+      <a class="tab" href="dz.html">DZ</a>
+      <a class="tab" href="materiel.html">Matériel</a>
+      <a class="tab active" href="profil.html">Profil</a>
+      <a class="tab" href="soufflerie.html">Soufflerie</a>
+      <a class="tab" href="stats.html">Stats</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero bracket">
+      <div class="hero-main">
+        <span class="hero-label">Sauts sur la voile actuelle</span>
+        <span class="hero-number" id="statVoileSauts">—</span>
+        <span class="hero-delta" id="heroVoileName"></span>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><span class="hero-stat-value" id="statConeSauts">–</span><span class="hero-stat-label">Sauts sur le cône</span></div>
+        <div class="hero-stat"><span class="hero-stat-value" id="statSecoursSauts">–</span><span class="hero-stat-label">Libés sur la réserve</span></div>
+        <div class="hero-stat"><span class="hero-stat-value" id="statSacSauts">–</span><span class="hero-stat-label">Sauts sur le sac</span></div>
+      </div>
+    </section>
+
+    <form id="profilForm">
+      <section class="panel" style="margin-bottom:20px;">
+        <div class="panel-head"><span class="panel-title">Voile principale</span></div>
+        <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Voile actuelle : <strong id="curVoile">—</strong></p>
+        <div class="form-grid">
+          <div class="field"><label>Date de fabrication</label><input type="date" id="f-voile-fab"></div>
+          <div class="field"><label>Sauts sur cette voile avant le suivi</label><input type="number" min="0" id="f-voile-offset" value="0"></div>
+          <div class="field"><label>Date du dernier resuspentage</label><input type="date" id="f-voile-resuspentage"></div>
+          <div class="field"><label>Sauts sur le cône avant ce resuspentage</label><input type="number" min="0" id="f-voile-cone-offset" value="0"></div>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Dernier resuspentage : <span id="resuspentageAgo">—</span></p>
+      </section>
+
+      <section class="panel" style="margin-bottom:20px;">
+        <div class="panel-head"><span class="panel-title">Voile de secours</span></div>
+        <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Réserve actuelle : <strong id="curSecours">—</strong></p>
+        <div class="form-grid">
+          <div class="field"><label>Date de fabrication</label><input type="date" id="f-secours-fab"></div>
+          <div class="field"><label>Sauts avec libé avant le suivi</label><input type="number" min="0" id="f-secours-offset" value="0"></div>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Compté automatiquement sur les sauts où la colonne « Libé » est renseignée.</p>
+      </section>
+
+      <section class="panel" style="margin-bottom:20px;">
+        <div class="panel-head"><span class="panel-title">AAD</span></div>
+        <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">AAD actuel : <strong id="curAad">—</strong></p>
+        <div class="form-grid">
+          <div class="field"><label>Date de mise en service</label><input type="date" id="f-aad-service"></div>
+          <div class="field"><label>Date de dernière révision</label><input type="date" id="f-aad-revision"></div>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Mise en service : <span id="aadServiceAgo">—</span> · Dernière révision : <span id="aadRevisionAgo">—</span></p>
+      </section>
+
+      <section class="panel" style="margin-bottom:20px;">
+        <div class="panel-head"><span class="panel-title">Sac &amp; harnais</span></div>
+        <p style="color:var(--text-secondary); font-size:12.5px; margin:-4px 0 14px;">Sac actuel : <strong id="curSac">—</strong></p>
+        <div class="form-grid">
+          <div class="field"><label>Date de fabrication</label><input type="date" id="f-sac-fab"></div>
+          <div class="field"><label>Sauts sur ce sac avant le suivi</label><input type="number" min="0" id="f-sac-offset" value="0"></div>
+        </div>
+      </section>
+
+      <section class="panel" style="margin-bottom:20px;">
+        <div class="panel-head"><span class="panel-title">Repliage de secours</span></div>
+        <div class="form-grid">
+          <div class="field"><label>Date du dernier repliage</label><input type="date" id="f-repliage"></div>
+        </div>
+        <p style="color:var(--text-tertiary); font-size:12px; margin-top:12px;">Dernier repliage : <span id="repliageAgo">—</span></p>
+      </section>
+
+      <div style="display:flex; justify-content:flex-end;">
+        <button type="submit" class="btn btn-primary" id="saveBtn">Enregistrer</button>
+      </div>
+    </form>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let jumps = [];
+let profil = {};
+
+function currentEquip(){
+  const sorted = computeGlobalN(jumps);
+  return sorted.length ? sorted[sorted.length-1] : null;
+}
+
+// Sauts dont `field` correspond exactement à `value` (comme materiel.html), avec une
+// borne de date optionnelle (utilisé pour compter les sauts depuis un resuspentage).
+function countMatching(field, value, sinceDate){
+  if(!value) return 0;
+  return jumps.filter(j => (j[field] || '').trim() === value && (!sinceDate || j.date > sinceDate)).length;
+}
+
+// Sauts sur `field`===value ET où la colonne Libé est renseignée (= ouverture réserve).
+function countLibe(field, value){
+  if(!value) return 0;
+  return jumps.filter(j => (j[field] || '').trim() === value && (j.libe || '').trim() !== '').length;
+}
+
+function daysSince(dateStr){
+  if(!dateStr) return null;
+  return Math.floor((Date.now() - new Date(dateStr + 'T00:00:00').getTime()) / 86400000);
+}
+function fmtDaysSince(dateStr){
+  const d = daysSince(dateStr);
+  if(d == null) return '—';
+  if(d < 0) return 'date future';
+  if(d === 0) return "aujourd'hui";
+  if(d === 1) return 'hier';
+  return `il y a ${d} j`;
+}
+
+function fillForm(){
+  document.getElementById('f-voile-fab').value = profil.voile_date_fabrication || '';
+  document.getElementById('f-voile-offset').value = profil.voile_offset_sauts || 0;
+  document.getElementById('f-voile-resuspentage').value = profil.voile_date_resuspentage || '';
+  document.getElementById('f-voile-cone-offset').value = profil.voile_cone_offset_sauts || 0;
+
+  document.getElementById('f-secours-fab').value = profil.secours_date_fabrication || '';
+  document.getElementById('f-secours-offset').value = profil.secours_offset_sauts || 0;
+
+  document.getElementById('f-aad-service').value = profil.aad_date_mise_service || '';
+  document.getElementById('f-aad-revision').value = profil.aad_date_revision || '';
+
+  document.getElementById('f-sac-fab').value = profil.sac_date_fabrication || '';
+  document.getElementById('f-sac-offset').value = profil.sac_offset_sauts || 0;
+
+  document.getElementById('f-repliage').value = profil.date_repliage_secours || '';
+}
+
+function refresh(){
+  const current = currentEquip();
+  const voileName   = (current && current.principale) ? current.principale.trim() : '';
+  const secoursName = (current && current.reserve)    ? current.reserve.trim()    : '';
+  const sacName     = (current && current.parachute)  ? current.parachute.trim()  : '';
+  const aadName     = (current && current.aad)        ? current.aad.trim()        : '';
+
+  document.getElementById('curVoile').textContent   = voileName   || '—';
+  document.getElementById('curSecours').textContent = secoursName || '—';
+  document.getElementById('curSac').textContent     = sacName     || '—';
+  document.getElementById('curAad').textContent     = aadName     || '—';
+  document.getElementById('heroVoileName').textContent = voileName ? `Voile : ${voileName}` : '';
+
+  const voileOffset = Number(document.getElementById('f-voile-offset').value) || 0;
+  document.getElementById('statVoileSauts').textContent = voileOffset + countMatching('principale', voileName);
+
+  const coneOffset = Number(document.getElementById('f-voile-cone-offset').value) || 0;
+  const resuspDate = document.getElementById('f-voile-resuspentage').value;
+  document.getElementById('statConeSauts').textContent = coneOffset + countMatching('principale', voileName, resuspDate);
+
+  const secoursOffset = Number(document.getElementById('f-secours-offset').value) || 0;
+  document.getElementById('statSecoursSauts').textContent = secoursOffset + countLibe('reserve', secoursName);
+
+  const sacOffset = Number(document.getElementById('f-sac-offset').value) || 0;
+  document.getElementById('statSacSauts').textContent = sacOffset + countMatching('parachute', sacName);
+
+  document.getElementById('aadServiceAgo').textContent  = fmtDaysSince(document.getElementById('f-aad-service').value);
+  document.getElementById('aadRevisionAgo').textContent = fmtDaysSince(document.getElementById('f-aad-revision').value);
+  document.getElementById('repliageAgo').textContent    = fmtDaysSince(document.getElementById('f-repliage').value);
+  document.getElementById('resuspentageAgo').textContent = fmtDaysSince(resuspDate);
+}
+
+document.getElementById('profilForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Enregistrement…';
+  const body = {
+    voile_date_fabrication:    document.getElementById('f-voile-fab').value || null,
+    voile_offset_sauts:        Number(document.getElementById('f-voile-offset').value) || 0,
+    voile_date_resuspentage:   document.getElementById('f-voile-resuspentage').value || null,
+    voile_cone_offset_sauts:   Number(document.getElementById('f-voile-cone-offset').value) || 0,
+    secours_date_fabrication:  document.getElementById('f-secours-fab').value || null,
+    secours_offset_sauts:      Number(document.getElementById('f-secours-offset').value) || 0,
+    aad_date_mise_service:     document.getElementById('f-aad-service').value || null,
+    aad_date_revision:         document.getElementById('f-aad-revision').value || null,
+    sac_date_fabrication:      document.getElementById('f-sac-fab').value || null,
+    sac_offset_sauts:          Number(document.getElementById('f-sac-offset').value) || 0,
+    date_repliage_secours:     document.getElementById('f-repliage').value || null,
+  };
+  try{
+    profil = await apiFetch({ endpoint:'/api/profil', method:'POST', body });
+    showToast('Profil matériel enregistré.');
+    refresh();
+  }catch(err){
+    showToast('Erreur : ' + err.message);
+  }finally{
+    btn.disabled = false; btn.textContent = 'Enregistrer';
+  }
+});
+
+// Recalcule les compteurs en direct dès qu'un champ pertinent (offset, date de
+// resuspentage) change, sans attendre l'enregistrement.
+['f-voile-offset','f-voile-cone-offset','f-voile-resuspentage','f-secours-offset','f-sac-offset','f-aad-service','f-aad-revision','f-repliage']
+  .forEach(id => document.getElementById(id).addEventListener('input', refresh));
+
+initAuth(async (data) => {
+  jumps = data;
+  profil = await apiFetch({ endpoint:'/api/profil' });
+  fillForm();
+  refresh();
+});
+</script>
+</body>
+</html>
